@@ -7,5 +7,6 @@
 #define BUFFER_SIZE 1024
 #define BACKLOG 8
 #define PROGRESS_BAR_WIDTH 50
+#define TIME_OUT 36000
 
 #endif

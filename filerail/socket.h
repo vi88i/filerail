@@ -118,10 +118,10 @@ int filerail_close(int fd) {
 int filerail_create_tcp_server(char *ip, char *port) {
 	int fd;
 	const int optval = 1;
-	socklen_t addrlen, optlen;
+	socklen_t addrlen;
 	struct sockaddr_in addr;
+	struct timeval tv;
 
-	optlen = sizeof(const int);
 	addrlen = (socklen_t)sizeof(struct sockaddr_in);
 	memset(&addr, 0, addrlen);
 
@@ -129,11 +129,16 @@ int filerail_create_tcp_server(char *ip, char *port) {
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(atoi(port));
 
+	tv.tv_sec = TIME_OUT;
+	tv.tv_usec = 0;
+
 	if (
 		(fd = filerail_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1 ||
 		filerail_bind(fd, (const struct sockaddr*)&addr, addrlen) == -1 ||
-		filerail_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval, optlen) == -1 ||
-		filerail_setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const void*)&optval, optlen) == -1 ||
+		filerail_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval, sizeof(const int)) == -1 ||
+		filerail_setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const void*)&optval, sizeof(const int)) == -1 ||
+		filerail_setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof(tv)) == -1 ||
+		filerail_setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const void*)&tv, sizeof(tv)) == -1 ||
 		filerail_listen(fd, BACKLOG) == -1
 	) {
 		goto clean_up;

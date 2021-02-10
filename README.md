@@ -20,7 +20,13 @@ $ gcc -o filerail_server filerail_server.c
 ```
 
 ```bash
-$ ./filerail_server -i 127.0.0.1 -p 8000
+$ ./filerail_server -v -i 127.0.0.1 -p 8000
+```
+
+- To daemonize (it may still print stuff to the terminal, but the process goes into background. Working on syslog for server)
+
+```bash
+$ ./filerail_server -i 127.0.0.1 -p 8000 @
 ```
 
 ```text
@@ -79,14 +85,16 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 
 - Can handle transferring of both files and directories.
 - For large files and directories it will be much better, if you zip them on your own (by means of zip utility ofc) to prevent timeout errors.
+- There exists a time out period of 10 hours on socket, after which connection is closed and process is aborted.
+- Your data is not encrypted.
 
 ---
 
 ## Upcoming features
 
 - Hash verification of file
-- Adding SSL layer
-- Checkpoint downloads/uploads
+- Adding SSL layer or some sort of authentication
+- Save checkpoints while download/upload
 
 ---
 
