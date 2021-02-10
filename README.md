@@ -75,6 +75,21 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 
 ---
 
+## Few notes
+
+- Can handle transferring of both files and directories.
+- For large files and directories it will be much better, if you zip them on your own (by means of zip utility ofc) to prevent timeout errors.
+
+---
+
+## Upcoming features
+
+- Hash verification of file
+- Adding SSL layer
+- Checkpoint downloads/uploads
+
+---
+
 ## Dependencies
 
 - <a href="https://github.com/kuba--/zip">kuba--/zip</a> 
