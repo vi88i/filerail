@@ -11,6 +11,7 @@
 #include <sys/statvfs.h>
 #include "../deps/kuba__zip/zip.c"
 
+#include "global.h"
 #include "constants.h"
 #include "protocol.h"
 
@@ -29,6 +30,7 @@ bool zip_file(struct zip_t *zip, const char *resource_name);
 int zip_on_extract_entry(const char *resource_name, void *arg);
 bool zip_extract_resource(const char *source_path, const char *destination_path);
 int filerail_rm(const char *resource_path);
+void filerail_progress_bar(double fraction);
 
 bool filerail_check_storage_size(off_t resource_size) {
 	struct statvfs buf;
@@ -285,6 +287,20 @@ int filerail_cd(const char *path) {
 		return -1;
 	}
 	return 0;
+}
+
+void filerail_progress_bar(double fraction) {
+	int x, cur;
+
+	cur = PROGRESS_BAR_WIDTH * (1 - fraction);
+	printf("\r\t[");
+	for (x = 1; x <= cur; x++) {
+		printf("#");
+	}
+	for (x = 1; x <= PROGRESS_BAR_WIDTH - cur; x++) {
+		printf(" ");
+	}
+	printf("] (%d%%)", (int)((1.0 - fraction) * 100));
 }
 
 #endif

@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/stat.h>
+#include<syslog.h>
 
+#include "filerail/global.h"
 #include "filerail/constants.h"
 #include "filerail/protocol.h"
 #include "filerail/socket.h"
@@ -10,10 +13,16 @@
 #include "filerail/operations.h"
 
 int main(int argc, char *argv[]) {
+	int opt;
+	extern int verbose;
+	extern char *optarg;
+	extern int optopt;
+
 	int fd, clifd, exit_status;
 	pid_t pid;
 	socklen_t addrlen;
 	struct sockaddr_in cliaddr;
+	char *ip, *port;
 	filerail_command_header command;
 	filerail_resource_header resource;
 	filerail_response_header response;
@@ -21,12 +30,52 @@ int main(int argc, char *argv[]) {
 	char resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 
 	exit_status = 0;
-	if (argc != 3) {
-		printf("syntax: ./filerail_server <ipv4 address> <port number>\n");
+
+	ip = port = NULL;
+	while ((opt = getopt(argc, argv, "uvqi:p:")) != -1) {
+		switch(opt) {
+			case 'u' : {
+				printf("usage: -v [-i ipv4 address] [-p port]\n");
+				goto parent_clean_up;
+			}
+			case 'v': {
+				verbose = 1;
+				break;
+			}
+			case 'q': {
+				verbose = 0;
+				break;
+			}
+			case 'i': {
+				ip = optarg;
+				break;
+			}
+			case 'p': {
+				port = optarg;
+				break;
+			}
+			case '?' : {
+				if (optopt == 'i' || optopt == 'p') {
+					printf("-%c option requires value\n", optopt);
+					goto parent_clean_up;
+				} else {
+					printf("-%c option is unknown\n", optopt);
+				}
+				break;
+			}
+			default: {
+				perror("filerail_server main");
+				goto parent_clean_up;
+			}
+		}
+	}
+
+	if (ip == NULL || port == NULL) {
+		printf("-i and -p are required options\n");
 		goto parent_clean_up;
 	}
 
-	if ((fd = filerail_create_tcp_server("127.0.0.1", "8000")) == -1) {
+	if ((fd = filerail_create_tcp_server(ip, port)) == -1) {
 		exit_status = -1;
 		goto parent_clean_up;
 	}
@@ -183,12 +232,11 @@ int main(int argc, char *argv[]) {
 
 	child_clean_up:
 	filerail_close(clifd);
-	printf("Client connection closed\n");
+	PRINT(printf("Client connection closed\n"));
 	return exit_status;
 
 	parent_clean_up:
 	filerail_close(clifd);
 	filerail_close(fd);
-	printf("Server shutdown\n");
 	return exit_status;
 }

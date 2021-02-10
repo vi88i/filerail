@@ -5,54 +5,81 @@
 
 ---
 
-# Run
+# Setup
 
 ## On server side
 
+- Spin filerail server.
+
 ```bash
 $ gcc -o filerail_server filerail_server.c
-$ ./filerail_server '<server ipv4 address>' '<server port>'
-# Example
-$ ./filerail_server 127.0.0.1 8000
 ```
 
-- It starts a filerail server.
+```bash
+# usage: -v [-i ipv4 address] [-p port]
+```
 
----
+```bash
+$ ./filerail_server -i 127.0.0.1 -p 8000
+```
+
+```text
+options:
+1. -u : usage
+2. -v : verbose mode on
+3. -i : IPv4 address of server
+4. -p : port
+```
 
 ## On client side
 
+- Compile client side code.
+
 ```bash
 $ gcc -o filerail_client filerail_client.c
-$ ./filerail_client '<server ipv4 address>' '<server port>' '<command>' '<...args>'
+```
+
+```bash
+# usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path]
+```
+
+```text
+options:
+1. -u : usage
+2. -v : verbose mode on
+3. -i : IPv4 address of server
+4. -p : port
+5. -o : operation {put, get, ping}
+6. -r : resource path (requires absolute path to resource)
+7. -d : destination path (requires absolute path to destination)
 ```
 
 ### ping
 
 ```bash
-$ ./filerail_client 127.0.0.1 8000 ping
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o ping
 PONG
 ```
 
 ### Upload file/directory
 
 ```bash
-$ ./filerail_client 127.0.0.1 8000 put '<absolute pathname to source>' '<absolute pathname of target dir on server>'
-# Example
-$ ./filerail_client 127.0.0.1 8000 put /home/user/a /home/user/fun
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun
 ```
 
 ### Download file/directory
 
 ```bash
-$ ./filerail_client 127.0.0.1 8000 get '<absolute pathname to source on server>' '<absolute pathname of target dir on client>'
-# Example
-$ ./filerail_client 127.0.0.1 8000 get /home/user/fun /home/user2
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 ```
+
+---
 
 ## Dependencies
 
 - <a href="https://github.com/kuba--/zip">kuba--/zip</a> 
+
+---
 
 ## Requirements
 

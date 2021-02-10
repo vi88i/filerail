@@ -6,5 +6,6 @@
 #define MAX_RESOURCE_LENGTH 256
 #define BUFFER_SIZE 1024
 #define BACKLOG 8
+#define PROGRESS_BAR_WIDTH 50
 
 #endif

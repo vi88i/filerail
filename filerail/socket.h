@@ -14,8 +14,10 @@
 #include <errno.h>
 #include <assert.h>
 
-#include "protocol.h"
+#include "global.h"
 #include "constants.h"
+#include "protocol.h"
+#include "utils.h"
 
 #define min(a, b) ((a) > (b) ? (b) : (a))
 
@@ -137,7 +139,7 @@ int filerail_create_tcp_server(char *ip, char *port) {
 		goto clean_up;
 	}
 
-	printf("[✔️ ] Listening for connections on %s:%s\n", ip, port);
+	PRINT(printf("[✔️ ] Listening for connections on %s:%s\n", ip, port));
 
 	return fd;
 
@@ -165,7 +167,7 @@ int filerail_connect_to_tcp_server(char *ip, char *port) {
 		goto clean_up;
 	}
 
-	printf("[✔️ ] Connected to server\n");
+	PRINT(printf("[✔️ ] Connected to server\n"));
 
 	return fd;
 
@@ -214,13 +216,13 @@ int filerail_who(int fd, const char *action) {
 		perror("socket.h filerail_who_called_exit");
 		return -1;
 	}
-	printf("%s:%d %s\n", inet_ntoa(addr.sin_addr), addr.sin_port, action);
+	PRINT(printf("%s:%d %s\n", inet_ntoa(addr.sin_addr), addr.sin_port, action));
 	return 0;
 }
 
 int filerail_sendfile(int fd, const char *zip_filename) {
 	int exit_status;
-	off_t size;
+	off_t size, total;
 	size_t nbytes;
 	FILE *fp;
 	struct stat stat_path;
@@ -249,7 +251,7 @@ int filerail_sendfile(int fd, const char *zip_filename) {
 		goto clean_up;
 	}
 
-	size = stat_path.st_size;
+	total = size = stat_path.st_size;
   while (size != 0) {
   	nbytes = fread((void *)buffer, 1, min(BUFFER_SIZE, size), fp);
   	if (nbytes != min(BUFFER_SIZE, size)) {
@@ -262,11 +264,11 @@ int filerail_sendfile(int fd, const char *zip_filename) {
   		goto clean_up;
   	}
   	size -= nbytes;
+  	PRINT(filerail_progress_bar(size / (1.0 * total)));
   }
-  fclose(fp);
-	return 0;
 
 	clean_up:
+	PRINT(printf("\n"));
 	if (fp != NULL) {
 		fclose(fp);
 	}
@@ -276,7 +278,7 @@ int filerail_sendfile(int fd, const char *zip_filename) {
 int filerail_recvfile(int fd, const char *zip_filename) {
 	int exit_status;
 	ssize_t nbytes;
-	off_t size;
+	off_t size, total;
 	FILE *fp;
 	unsigned char buffer[BUFFER_SIZE];
 	filerail_resource_header resource;
@@ -295,7 +297,7 @@ int filerail_recvfile(int fd, const char *zip_filename) {
   	goto clean_up;
   }
 
-	size = resource.resource_size;
+	total = size = resource.resource_size;
 	while (size != 0) {
 		nbytes = min(BUFFER_SIZE, size);
 		if (filerail_recv(fd, (void *)buffer, nbytes, MSG_WAITALL) == -1) {
@@ -306,10 +308,12 @@ int filerail_recvfile(int fd, const char *zip_filename) {
 			exit_status = -1;
 			goto clean_up;
 		}
-		size -= nbytes;
+  	size -= nbytes;
+  	PRINT(filerail_progress_bar(size / (1.0 * total)););
 	}
 
 	clean_up:
+	PRINT(printf("\n"));
 	if (fp != NULL) {
 		fclose(fp);
 	}
