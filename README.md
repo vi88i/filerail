@@ -1,3 +1,4 @@
+
 <p align="center"><img src="https://github.com/vi88i/filerail/blob/main/assets/filerail.png" alt="filerail"></p>
 
 <p align="center"><b>Host a simple and cheap peer-to-peer file transfer program on your Linux server</b>.</p>
@@ -44,9 +45,9 @@ $ ./filerail_client 127.0.0.1 8000 put /home/user/a /home/user/fun
 ### Download file/directory
 
 ```bash
-$ ./filerail_client 127.0.0.1 8000 put '<absolute pathname to source on server>' '<absolute pathname of target dir on client>'
+$ ./filerail_client 127.0.0.1 8000 get '<absolute pathname to source on server>' '<absolute pathname of target dir on client>'
 # Example
-$ ./filerail_client 127.0.0.1 8000 put /home/user/fun /home/user2
+$ ./filerail_client 127.0.0.1 8000 get /home/user/fun /home/user2
 ```
 
 ## Dependencies
