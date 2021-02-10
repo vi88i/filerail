@@ -137,7 +137,7 @@ int filerail_create_tcp_server(char *ip, char *port) {
 		goto clean_up;
 	}
 
-	printf("[\xE2\x9C\x93] Listening for connections on %s:%s\n", ip, port);
+	printf("[✔️ ] Listening for connections on %s:%s\n", ip, port);
 
 	return fd;
 
@@ -165,7 +165,7 @@ int filerail_connect_to_tcp_server(char *ip, char *port) {
 		goto clean_up;
 	}
 
-	printf("[\xE2\x9C\x93] Connected to server\n");
+	printf("[✔️ ] Connected to server\n");
 
 	return fd;
 

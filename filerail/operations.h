@@ -37,6 +37,7 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 	strcpy(zip_filename, resource_name);
 	strcat(zip_filename, ".zip");
 
+	printf("Zipping resource...\n");
 	if (S_ISDIR(stat_resource->st_mode)) {
 		if (
 			(zip = zip_open(zip_filename, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w')) == NULL ||
@@ -58,11 +59,14 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 	}
 	zip_close(zip);
 	zip = NULL;
+	printf("Resource zipped...\n");
 
+	printf("Ready to send resource...\n");
   if (filerail_sendfile(fd, zip_filename) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
+  printf("File transfer complete...\n");
 
 	if (filerail_rm(zip_filename) == -1) {
 		exit_status = -1;
@@ -89,10 +93,12 @@ int filerail_recvfile_handler(int fd, const char *resource_name, const char *res
   	goto clean_up;
   }
 
+  printf("Ready to receive file...\n");
   if (filerail_recvfile(fd, resource_path) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
+  printf("File transfer complete...\n");
 
   if (filerail_cd(resource_dir) == -1) {
   	exit_status = -1;
@@ -103,6 +109,7 @@ int filerail_recvfile_handler(int fd, const char *resource_name, const char *res
   strcpy(zip_filename, resource_name);
   strcat(zip_filename, ".zip");
 
+  printf("Unzipping...\n");
   if (zip_extract(zip_filename, resource_dir, zip_on_extract_entry, NULL) == -1) {
   	perror("operations.h filerail_recvfile_handler");
   	exit_status = -1;
