@@ -246,6 +246,11 @@ bool filerail_parse_resource_path(const char *resource_path, char *resource_name
 	int i;
 	size_t path_len = strlen(resource_path);
 
+	if (path_len > MAX_PATH_LENGTH - 1) {
+		printf("Length of resource path exceeded MAX_PATH_LENGTH\n");
+		return false;
+	}
+
 	for (i = path_len - 1; i > 0; i--) {
 		if (resource_path[i] == '/') {
 			break;
@@ -256,6 +261,10 @@ bool filerail_parse_resource_path(const char *resource_path, char *resource_name
 	resource_dir[0] = '\0';
 	if (i == -1) {
 		printf("Resource path must be absolute\n");
+		return false;
+	}
+	if (path_len - i - 1 > MAX_RESOURCE_LENGTH) {
+		printf("Length of resource name exceeded MAX_RESOURCE_LENGTH\n");
 		return false;
 	}
 	memcpy(resource_name, resource_path + i + 1, path_len - i - 1);
