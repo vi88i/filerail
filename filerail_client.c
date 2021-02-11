@@ -236,5 +236,8 @@ int main(int argc, char *argv[]) {
 
 	clean_up:
 	filerail_close(fd);
+	if (exit_status == -1) {
+		PRINT(printf("[❌ ] FAILED\n"));
+	}
 	return exit_status;
 }

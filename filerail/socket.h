@@ -43,7 +43,7 @@ static int filerail_socket(int domain, int type, int protocol) {
 
 	fd = socket(domain, type, protocol);
 	if (fd == -1) {
-		perror("socket.h filerail_socket");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_socket socket");
 	}
 	return fd;
 }
@@ -53,7 +53,7 @@ static int filerail_bind(int fd, const struct sockaddr *addr, socklen_t addrlen)
 
 	ret = bind(fd, addr, addrlen);
 	if (ret == -1) {
-		perror("socket.h filerail_bind");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_bind bind");
 	}
 	return ret;
 }
@@ -63,7 +63,7 @@ static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrl
 
 	ret = connect(fd, addr, addrlen);
 	if (ret == -1) {
-		perror("socket.h filerail_connect");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_connect connect");
 	}
 	return ret;
 }
@@ -73,7 +73,7 @@ static int filerail_listen(int fd, int backlog) {
 
 	ret = listen(fd, backlog);
 	if (ret == -1) {
-		perror("socket.h filerail_listen");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_listen listen");
 	}
 	return ret;
 }
@@ -83,7 +83,7 @@ static int filerail_setsockopt(int fd, int level, int option, const void *optval
 
 	ret = setsockopt(fd, level, option, optval, optlen);
 	if (ret == -1) {
-		perror("socket.h filerail_setsockopt");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_setsockopt setsockopt");
 	}
 	return ret;
 }
@@ -97,7 +97,7 @@ int filerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 
 	clifd = accept(fd, addr, addrlen);
 	if (clifd == -1) {
-		perror("socket.h filerail_accept");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_accept accept");
 	}
 	return clifd;
 }
@@ -109,7 +109,7 @@ int filerail_close(int fd) {
 	if (filerail_is_fd_valid(fd)) {
 		ret = close(fd);
 		if (ret == -1) {
-			perror("socket.h filerail_close");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_close");
 		}
 	}
 	return ret;
@@ -143,8 +143,6 @@ int filerail_create_tcp_server(char *ip, char *port) {
 	) {
 		goto clean_up;
 	}
-
-	PRINT(printf("[✔️ ] Listening for connections on %s:%s\n", ip, port));
 
 	return fd;
 
@@ -188,7 +186,7 @@ int filerail_send(int fd, void *buffer, size_t len, int flags) {
 	while (len != 0) {
 		nbytes = send(fd, buffer + cur, len, flags);
 		if (nbytes == -1) {
-			perror("socket.h filerail_send");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_send send");
 			return -1;
 		}
 		len -= nbytes;
@@ -204,7 +202,7 @@ int filerail_recv(int fd, void *buffer, size_t len, int flags) {
 	while (len != 0) {
 		nbytes = recv(fd, buffer + cur, len, flags);
 		if (nbytes == -1) {
-			perror("socket.h filerail_recv");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv recv");
 			return -1;
 		}
 		len -= nbytes;
@@ -218,7 +216,7 @@ int filerail_who(int fd, const char *action) {
 	struct sockaddr_in addr;
 
 	if (getpeername(fd, (struct sockaddr*)&addr, &addrlen) == -1) {
-		perror("socket.h filerail_who_called_exit");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_who_called_exit getpeername");
 		return -1;
 	}
 	PRINT(printf("%s:%d %s\n", inet_ntoa(addr.sin_addr), addr.sin_port, action));
@@ -238,20 +236,20 @@ int filerail_sendfile(int fd, const char *zip_filename) {
 	// open file
 	fp = fopen(zip_filename, "rb");
 	if (fp == NULL) {
-		perror("socket.h filerail_sendfile");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fopen");
 		exit_status = -1;
 		goto clean_up;
 	}
 
 	if (stat(zip_filename, &stat_path) == -1) {
-		perror("socket.h filerail_sendfile");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile stat");
 		exit_status = -1;
 		goto clean_up;
 	}
 
 	// advertize size of file
 	if (filerail_send_resource_header(fd, "\0", "\0", stat_path.st_size) == -1) {
-		perror("socket.h filerail_sendfile");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile filerail_send_resource_header");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -259,8 +257,8 @@ int filerail_sendfile(int fd, const char *zip_filename) {
 	total = size = stat_path.st_size;
   while (size != 0) {
   	nbytes = fread((void *)buffer, 1, min(BUFFER_SIZE, size), fp);
-  	if (nbytes != min(BUFFER_SIZE, size)) {
-			perror("socket.h filerail_sendfile");
+  	if (nbytes != min(BUFFER_SIZE, size) && ferror(fp)) {
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fread");
 			exit_status = -1;
 			goto clean_up;
   	}
@@ -292,7 +290,7 @@ int filerail_recvfile(int fd, const char *zip_filename) {
 
 	fp = fopen(zip_filename, "wb");
 	if (fp == NULL) {
-		perror("socket.h filerail_recvfile");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -308,8 +306,8 @@ int filerail_recvfile(int fd, const char *zip_filename) {
 		if (filerail_recv(fd, (void *)buffer, nbytes, MSG_WAITALL) == -1) {
 			goto clean_up;
 		}
-		if (fwrite((void *)buffer, 1, nbytes, fp) != nbytes) {
-			perror("socket.h filerail_recvfile");
+		if (fwrite((void *)buffer, 1, nbytes, fp) != nbytes && ferror(fp)) {
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
 			exit_status = -1;
 			goto clean_up;
 		}

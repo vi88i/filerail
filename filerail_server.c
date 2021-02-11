@@ -3,7 +3,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include<syslog.h>
 
 #include "filerail/global.h"
 #include "filerail/constants.h"
@@ -18,6 +17,8 @@ int main(int argc, char *argv[]) {
 	extern char *optarg;
 	extern int optopt;
 
+	extern int is_server;
+
 	int fd, clifd, exit_status;
 	pid_t pid;
 	socklen_t addrlen;
@@ -30,6 +31,7 @@ int main(int argc, char *argv[]) {
 	char resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 
 	exit_status = 0;
+	is_server = 1;
 
 	ip = port = NULL;
 	while ((opt = getopt(argc, argv, "uvqi:p:")) != -1) {
@@ -64,7 +66,7 @@ int main(int argc, char *argv[]) {
 				break;
 			}
 			default: {
-				perror("filerail_server main");
+				LOG(LOG_ERR | LOG_USER, "filerail_server getopt");
 				goto parent_clean_up;
 			}
 		}
@@ -94,7 +96,7 @@ int main(int argc, char *argv[]) {
 
 		pid = fork();
 		if (pid == -1) {
-			perror("filerail_server.c fork");
+			LOG(LOG_ERR | LOG_USER, "filerail_server fork");
 			exit_status = -1;
 			goto parent_clean_up;
 		} else if (pid == 0) {
@@ -138,7 +140,7 @@ int main(int argc, char *argv[]) {
 							} else if (command.command_type == ABORT) {
 								// do nothing wait for clean up
 							} else {
-								printf("PROTOCOL NOT FOLLOWED\n");
+								LOG(LOG_INFO | LOG_USER, "PROTOCOL NOT FOLLOWED");
 							}
 						} else {
 							if (filerail_send_response_header(clifd, NO_ACCESS) == -1) {
@@ -149,12 +151,12 @@ int main(int argc, char *argv[]) {
 						// if file doesnt exist, check if dir is accessible
 						if (stat(resource.resource_dir, &stat_path) == -1) {
 							exit_status = -1;
-							perror("filerail_server main");
+							LOG(LOG_ERR | LOG_USER, "filerail_server main stat");
 							if (filerail_send_response_header(clifd, NOT_FOUND) == -1) {
 								exit_status = -1;
 							}
 						} else {
-							if (access(resource.resource_dir, W_OK) == 0) {
+							if (filerail_is_writeable(resource.resource_dir)) {
 								if (filerail_send_response_header(clifd, OK) == -1) {
 									exit_status = -1;
 									goto child_clean_up;
@@ -206,7 +208,7 @@ int main(int argc, char *argv[]) {
 									exit_status = -1;
 								}
 							} else {
-								printf("PROTOCOL NOT FOLLOWED\n");
+								LOG(LOG_INFO | LOG_USER, "PROTOCOL NOT FOLLOWED");
 							}
 						} else {
 							if (filerail_send_response_header(clifd, BAD_RESOURCE) == -1) {
@@ -224,19 +226,26 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			} else {
-				printf("PROTOCOL NOT FOLLOWED\n");
+				LOG(LOG_ERR | LOG_USER, "PROTOCOL NOT FOLLOWED");
 			}
-			goto child_clean_up;
+			child_clean_up:
+			filerail_close(clifd);
+			if (exit_status == -1) {
+				LOG(LOG_INFO | LOG_USER, "child process, FAILED");
+			} else {
+				LOG(LOG_INFO | LOG_USER, "child process, SUCCESS");
+			}
+			return exit_status;
 		}
 	}
-
-	child_clean_up:
-	filerail_close(clifd);
-	PRINT(printf("Client connection closed\n"));
-	return exit_status;
 
 	parent_clean_up:
 	filerail_close(clifd);
 	filerail_close(fd);
+	if (exit_status == -1) {
+		LOG(LOG_INFO | LOG_USER, "parent process, FAILED");
+	} else {
+		LOG(LOG_INFO | LOG_USER, "parent process, SUCCESS");
+	}
 	return exit_status;
 }

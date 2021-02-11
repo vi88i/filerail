@@ -48,7 +48,7 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 			filerail_zip_folder(zip, resource_name) == -1
 		)
 		{
-			perror("operations.h filerail_sendfile_handler");
+			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler");
 			goto clean_up;
 		}
 	} else {
@@ -57,7 +57,7 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 			filerail_zip_file(zip, resource_name)
 			)
 		{
-			perror("operations.h filerail_sendfile_handler");
+			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler");
 			goto clean_up;
 		}
 	}
@@ -124,7 +124,7 @@ int filerail_recvfile_handler(int fd, const char *resource_name, const char *res
 
   PRINT(printf("Unzipping...\n"));
   if (zip_extract(zip_filename, resource_dir, zip_on_extract_entry, NULL) == -1) {
-  	perror("operations.h filerail_recvfile_handler");
+  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler");
   	exit_status = -1;
   	goto clean_up;
   }
@@ -135,7 +135,7 @@ int filerail_recvfile_handler(int fd, const char *resource_name, const char *res
   }
 
   if (filerail_rm(resource_path) == -1) {
-  	perror("operations.h filerail_recvfile_handler");
+  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler");
   	exit_status = -1;
   	goto clean_up;
   }
