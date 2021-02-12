@@ -13,6 +13,8 @@ enum COMMAND {
 	ABORT, // abort the process
 	OVERWRITE, // notify user about overwriting files while uploading
 	RESOURCE_SIZE, // advertise resource size
+	RESUME, // prompt client whether it wants to resume from previous checkpoint
+	RESTART // tell client there are no checkpoints
 };
 
 // filerail responses
@@ -30,19 +32,19 @@ enum RESPONSE {
 
 // command structure
 typedef struct _filerail_command_header {
-	int command_type;
+	int command_type; // self-explanatory
 } filerail_command_header;
 
 // response structure
 typedef struct _filerail_response_header {
-	int response_type;
+	int response_type; // self-explanatory
 } filerail_response_header;
 
 // metadata about resource to be sent
 typedef struct _filerail_resource_header {
-	off_t resource_size;
-	char resource_name[MAX_RESOURCE_LENGTH];
-	char resource_dir[MAX_PATH_LENGTH];
+	off_t resource_size; // stores resource size
+	char resource_name[MAX_RESOURCE_LENGTH]; // self-explanatory
+	char resource_dir[MAX_PATH_LENGTH]; // self-explanatory
 } filerail_resource_header;
 
 // packet which transports encrypted data
@@ -51,5 +53,11 @@ typedef struct _filerail_data_packet {
 	size_t data_size; // size of actual data
 	size_t data_padding; // padding added by AES encryption
 } filerail_data_packet;
+
+// serializes checkpoint
+typedef struct _filerail_checkpoint {
+	off_t offset; // stores offset
+	char resource_path[MAX_PATH_LENGTH]; // self-explanatory
+} filerail_checkpoint;
 
 #endif

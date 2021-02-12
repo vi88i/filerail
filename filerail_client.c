@@ -17,18 +17,23 @@ int main(int argc, char *argv[]) {
 
 	int fd, exit_status;
 	char option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
-	char *ip, *port, *operation, *res_path, *des_path, *key_path;
+	char *ip, *port, *operation, *res_path, *des_path, *key_path, *ckpt_path;
 	struct stat stat_path;
 	filerail_response_header response;
 	filerail_resource_header resource;
 
 	exit_status = 0;
 
-	ip = port = operation = res_path = des_path = key_path = NULL;
-	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:k:")) != -1) {
+	ip = port = operation = res_path = des_path = key_path = ckpt_path = NULL;
+	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:k:c:")) != -1) {
 		switch(opt) {
 			case 'u' : {
-				printf("usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path] [-k key directory]\n");
+				printf(
+					"usage: -v [-i ipv4 address] [-p port]"
+					"[-o operation] [-r resource path]"
+					"[-d destination path] [-k key directory]"
+					"[-c checkpoint directory]\n"
+				);
 				goto clean_up;
 			}
 			case 'v': {
@@ -59,8 +64,16 @@ int main(int argc, char *argv[]) {
 				key_path = optarg;
 				break;
 			}
+			case 'c' : {
+				ckpt_path = optarg;
+				break;
+			}
 			case '?' : {
-				if (optopt == 'i' || optopt == 'p' || optopt == 'o' || optopt == 'r' || optopt == 'd' || optopt == 'k') {
+				if (
+					optopt == 'i' || optopt == 'p' || optopt == 'o' || optopt == 'r' ||
+					optopt == 'd' || optopt == 'k' || optopt == 'c'
+					)
+				{
 					printf("-%c option requires value\n", optopt);
 					goto clean_up;
 				} else {
@@ -75,14 +88,27 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (ip == NULL || port == NULL || operation == NULL || (strcmp("ping", operation) && key_path == NULL)) {
-		printf("-i, -p, -a and -k are required options\n");
+	if (
+		ip == NULL || port == NULL || operation == NULL ||
+		(strcmp("ping", operation) != 0 && key_path == NULL) ||
+		(strcmp("ping", operation) != 0 && ckpt_path == NULL)
+		)
+	{
+		printf("-i, -p, -a, -k and -c are required options\n");
 		goto clean_up;
 	}
 
 	if (!filerail_is_exists(key_path, &stat_path)) {
 		printf("Couldn't open key directory\n");
 		goto clean_up;
+	}
+
+	if (!filerail_is_exists(ckpt_path, &stat_path)) {
+		if (filerail_mkdir(ckpt_path) == -1) {
+			printf("Failed to create checkpoints directory at %s\n", ckpt_path);
+			exit_status = -1;
+			goto clean_up;
+		}
 	}
 
 	if ((fd = filerail_connect_to_tcp_server(ip, port)) == -1) {
@@ -134,7 +160,7 @@ int main(int argc, char *argv[]) {
 								}
 								put_file:
 								printf("Starting transfer process...\n");
-								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path, key_path) == -1) {
+								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path, key_path, ckpt_path) == -1) {
 									exit_status = -1;
 								}
 							} else {
@@ -201,7 +227,7 @@ int main(int argc, char *argv[]) {
 									exit_status = -1;
 								}
 								strcat(resource_path, ".zip");
-								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, key_path) == -1) {
+								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, key_path, ckpt_path) == -1) {
 									exit_status = -1;
 								}
 							} else {

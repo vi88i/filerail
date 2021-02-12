@@ -34,8 +34,15 @@ int filerail_who(int fd, const char *action);
 int filerail_send_command_header(int fd, int type);
 int filerail_send_response_header(int fd, int type);
 int filerail_send_resource_header(int fd, char *name, char *dir, off_t size);
-int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K);
-int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K);
+int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offset);
+int filerail_recvfile(
+	int fd,
+	const char *zip_filename,
+	AES_keys *K,
+	off_t offset,
+	const char *ckpt_resource_path,
+	const char *resource_path
+);
 
 static int filerail_socket(int domain, int type, int protocol) {
 	int fd;
@@ -222,7 +229,7 @@ int filerail_who(int fd, const char *action) {
 	return 0;
 }
 
-int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K) {
+int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offset) {
 	int exit_status;
 	off_t size, total;
 	size_t nbytes;
@@ -230,6 +237,7 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K) {
 	struct stat stat_path;
 	filerail_data_packet data;
 
+	fp = NULL;
 	exit_status = 0;
 
 	// open file
@@ -254,6 +262,15 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K) {
 	}
 
 	total = size = stat_path.st_size;
+	size -= offset;
+
+	rewind(fp);
+	if (fseek(fp, offset, SEEK_CUR) == -1) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fseek");
+		exit_status = -1;
+		goto clean_up;
+	}
+
   while (size != 0) {
   	nbytes = fread((void *)data.data_payload, 1, min(BUFFER_SIZE, size), fp);
   	if (nbytes != min(BUFFER_SIZE, size) && ferror(fp)) {
@@ -279,18 +296,36 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K) {
 	return exit_status;
 }
 
-int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K) {
+int filerail_recvfile(
+	int fd,
+	const char *zip_filename,
+	AES_keys *K,
+	off_t offset,
+	const char *ckpt_resource_path,
+	const char *resource_path
+	)
+{
 	int exit_status;
 	ssize_t nbytes;
 	off_t size, total;
-	FILE *fp;
+	FILE *fp, *fckpt;
 	filerail_resource_header resource;
 	filerail_data_packet data;
+	filerail_checkpoint ckpt;
 
+	fp = fckpt = NULL;
 	exit_status = 0;
+	strcpy(ckpt.resource_path, resource_path);
 
 	fp = fopen(zip_filename, "wb");
 	if (fp == NULL) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	fckpt = fopen(ckpt_resource_path, "wb");
+	if (fckpt == NULL) {
 		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
 		exit_status = -1;
 		goto clean_up;
@@ -302,6 +337,16 @@ int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K) {
   }
 
 	total = size = resource.resource_size;
+	size -= offset;
+
+	rewind(fp);
+	if (fseek(fp, offset, SEEK_CUR) == -1) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fseek");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	ckpt.offset = offset;
 	while (size != 0) {
 		if (filerail_recv(fd, (void *)&data, sizeof(data), MSG_WAITALL) == -1) {
 			goto clean_up;
@@ -313,6 +358,15 @@ int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K) {
 			exit_status = -1;
 			goto clean_up;
 		}
+		fflush(fp);
+		ckpt.offset += nbytes;
+		rewind(fckpt);
+		if (fwrite((void *)&ckpt, 1, sizeof(ckpt), fckpt) != sizeof(ckpt)) {
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
+			exit_status = -1;
+			goto clean_up;
+		}
+		fflush(fckpt);
   	size -= nbytes;
   	PRINT(filerail_progress_bar(size / (1.0 * total)););
 	}
@@ -321,6 +375,9 @@ int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K) {
 	PRINT(printf("\n"));
 	if (fp != NULL) {
 		fclose(fp);
+	}
+	if (fckpt != NULL) {
+		fclose(fckpt);
 	}
 	return exit_status;
 }

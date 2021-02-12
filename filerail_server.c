@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	pid_t pid;
 	socklen_t addrlen;
 	struct sockaddr_in cliaddr;
-	char *ip, *port, *key_path;
+	char *ip, *port, *key_path, *ckpt_path;
 	filerail_command_header command;
 	filerail_resource_header resource;
 	filerail_response_header response;
@@ -33,11 +33,11 @@ int main(int argc, char *argv[]) {
 	exit_status = 0;
 	is_server = 1;
 
-	ip = port = key_path = NULL;
-	while ((opt = getopt(argc, argv, "uvqi:p:k:")) != -1) {
+	ip = port = key_path = ckpt_path = NULL;
+	while ((opt = getopt(argc, argv, "uvqi:p:k:m:c:")) != -1) {
 		switch(opt) {
 			case 'u' : {
-				printf("usage: -v [-i ipv4 address] [-p port] [-k key directory]\n");
+				printf("usage: -v [-i ipv4 address] [-p port] [-k key directory] [-c checkpoint directory]\n");
 				goto parent_clean_up;
 			}
 			case 'v': {
@@ -60,8 +60,12 @@ int main(int argc, char *argv[]) {
 				key_path = optarg;
 				break;
 			}
+			case 'c' : {
+				ckpt_path = optarg;
+				break;
+			}
 			case '?' : {
-				if (optopt == 'i' || optopt == 'p' || optopt == 'k') {
+				if (optopt == 'i' || optopt == 'p' || optopt == 'k' || optopt == 'c') {
 					printf("-%c option requires value\n", optopt);
 					goto parent_clean_up;
 				} else {
@@ -76,14 +80,22 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (ip == NULL || port == NULL || key_path == NULL) {
-		printf("-i, -p and -k are required options\n");
+	if (ip == NULL || port == NULL || key_path == NULL || ckpt_path == NULL) {
+		printf("-i, -p, -k and -c are required options\n");
 		goto parent_clean_up;
 	}
 
 	if (!filerail_is_exists(key_path, &stat_path)) {
 		printf("Couldn't open key directory\n");
 		goto parent_clean_up;
+	}
+
+	if (!filerail_is_exists(ckpt_path, &stat_path)) {
+		if (filerail_mkdir(ckpt_path) == -1) {
+			printf("Failed to create checkpoints directory at %s\n", ckpt_path);
+			exit_status = -1;
+			goto parent_clean_up;
+		}
 	}
 
 	if ((fd = filerail_create_tcp_server(ip, port)) == -1) {
@@ -143,7 +155,15 @@ int main(int argc, char *argv[]) {
 								}
 								put_file:
 								strcat(resource_path, ".zip");
-								if (filerail_recvfile_handler(clifd, resource.resource_name, resource.resource_dir, resource_path, key_path) == -1) {
+								if (
+									filerail_recvfile_handler(
+											clifd,
+											resource.resource_name,
+											resource.resource_dir,
+											resource_path,
+											key_path,
+											ckpt_path
+									) == -1) {
 									exit_status = -1;
 								}
 							} else if (command.command_type == ABORT) {
@@ -213,7 +233,14 @@ int main(int argc, char *argv[]) {
 							if (response.response_type == ABORT) {
 								// do nothing wait for clean up
 							} else if (response.response_type == OK) {
-								if (filerail_sendfile_handler(clifd, resource.resource_dir, resource.resource_name, &stat_path, key_path) == -1) {
+								if (
+									filerail_sendfile_handler(
+										clifd,
+										resource.resource_dir,
+										resource.resource_name,
+										&stat_path,
+										key_path,
+										ckpt_path) == -1) {
 									exit_status = -1;
 								}
 							} else {

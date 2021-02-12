@@ -22,33 +22,42 @@ int filerail_sendfile_handler(
 	const char *resource_dir,
 	const char *resource_name,
 	struct stat *stat_resource,
-	const char *key_path);
+	const char *key_path,
+	const char* ckpt_path);
 
 int filerail_recvfile_handler(
 	int fd,
 	const char *resource_name,
 	const char *resource_dir,
 	const char *resource_path,
-	const char *key_path);
+	const char *key_path,
+	const char* ckpt_path);
 
 int filerail_sendfile_handler(
 	int fd,
 	const char *resource_dir,
 	const char *resource_name,
 	struct stat *stat_resource,
-	const char *key_path)
+	const char *key_path,
+	const char* ckpt_path)
 {
 	int exit_status;
-	char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH];
+	off_t offset;
+	char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH], option;
 	struct zip_t *zip;
 	clock_t start, end;
 	double cpu_time_used;
 	unsigned char hash[MD5_DIGEST_LENGTH];
+	filerail_command_header command;
 	aesCryptoInfo ci;
 	AES_keys K;
 	filerail_response_header response;
 
 	exit_status = 0;
+	offset = 0;
+	zip_filename[0] = '\0';
+	strcpy(zip_filename, resource_name);
+	strcat(zip_filename, ".zip");
 
 	if (filerail_getcwd(current_dir) == -1) {
 		exit_status = -1;
@@ -81,10 +90,6 @@ int filerail_sendfile_handler(
 		goto clean_up;
 	}
 
-	zip_filename[0] = '\0';
-	strcpy(zip_filename, resource_name);
-	strcat(zip_filename, ".zip");
-
 	PRINT(printf("Zipping resource...\n"));
 	if (S_ISDIR(stat_resource->st_mode)) {
 		if (
@@ -116,9 +121,49 @@ int filerail_sendfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	PRINT(printf("Sending md5 hash...\n"));
+	if (filerail_send(fd, (void *)hash, MD5_DIGEST_LENGTH, 0) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	PRINT(printf("Finished...\n"));
+
+	if (filerail_recv(fd, (void *)&command, sizeof(command), MSG_WAITALL) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	if (command.command_type == RESUME) {
+		if (!is_server) {
+			printf("Do you wish to restart from previous checkpoint[Y/N] : ");
+			scanf("%c", &option);
+			getchar();
+		} else {
+			option = 'y';
+		}
+		if (option == 'Y' || option == 'y') {
+			if (filerail_send_response_header(fd, OK) == -1) {
+				exit_status = -1;
+				goto clean_up;
+			}
+			if (filerail_recv(fd, (void *)&offset, sizeof(offset), MSG_WAITALL) == -1) {
+				exit_status = -1;
+				goto clean_up;
+			}
+		} else {
+			if (filerail_send_response_header(fd, ABORT) == -1) {
+				exit_status = -1;
+				goto clean_up;
+			}
+		}
+	} else if (command.command_type == RESTART) {
+		// do nothing, simply restart the whole process of sending file
+	} else {
+		PRINT(printf("PROTOCOL NOT FOLLOWED\n"););
+	}
+
 	PRINT(printf("Ready to send resource...\n"));
   start = clock();
-  if (filerail_sendfile(fd, zip_filename, &K) == -1) {
+  if (filerail_sendfile(fd, zip_filename, &K, offset) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -126,12 +171,8 @@ int filerail_sendfile_handler(
   cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
   PRINT(printf("File transfer complete in %f seconds...\n", cpu_time_used));
 
-  PRINT(printf("Sending hash...\n"));
-  if (
-  	filerail_send(fd, (void *)hash, MD5_DIGEST_LENGTH, 0) == -1 ||
-  	filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1
-  	)
-  {
+  PRINT(printf("Verifying hash...\n"));
+  if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -166,16 +207,25 @@ int filerail_recvfile_handler(
 	const char *resource_name,
 	const char *resource_dir,
 	const char *resource_path,
-	const char *key_path)
+	const char *key_path,
+	const char* ckpt_path)
 {
   int exit_status;
+  off_t offset;
   char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH];
 	clock_t start, end;
 	double cpu_time_used;
 	unsigned char computed_hash[MD5_DIGEST_LENGTH], recvd_hash[MD5_DIGEST_LENGTH];
+	char ckpt_resource_path[MAX_PATH_LENGTH], hex_str[2 * MD5_DIGEST_LENGTH];
+	struct stat stat_path;
+	filerail_checkpoint ckpt;
+	filerail_response_header response;
+	FILE *fp;
 	aesCryptoInfo ci;
 	AES_keys K;
 
+	fp = NULL;
+	offset = 0;
   exit_status = 0;
 
   if (filerail_getcwd(current_dir) == -1) {
@@ -204,9 +254,70 @@ int filerail_recvfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	PRINT(printf("Receving md5 hash\n"););
+	if (filerail_recv(fd, (void *)recvd_hash, MD5_DIGEST_LENGTH, 0) == -1) {
+  	exit_status = -1;
+  	goto clean_up;
+  }
+  PRINT(printf("Finished...\n"));
+
+	ckpt_resource_path[0] = '\0';
+	strcpy(ckpt_resource_path, ckpt_path);
+	filerail_hash_to_string(recvd_hash, hex_str);
+	strcat(ckpt_resource_path, "/");
+	strcat(ckpt_resource_path, hex_str);
+
+	if (filerail_is_exists(ckpt_resource_path, &stat_path)) {
+		if (filerail_is_readable(ckpt_resource_path)) {
+			if ((fp = fopen(ckpt_resource_path, "rb")) == NULL) {
+				LOG(LOG_USER | LOG_ERR, "utils.h filerail_recvfile_handler fopen");
+				exit_status = -1;
+				goto clean_up;
+			}
+			if (fread((void *)&ckpt, 1, sizeof(ckpt), fp) != sizeof(ckpt)) {
+				LOG(LOG_USER | LOG_ERR, "utils.h filerail_recvfile_handler fread");
+				exit_status = -1;
+				goto clean_up;
+			}
+			if (strcmp(ckpt.resource_path, resource_path) != 0) {
+				goto restart;
+			}
+			offset = ckpt.offset;
+			if (filerail_send_command_header(fd, RESUME) == -1) {
+				exit_status = -1;
+				goto clean_up;
+			}
+			if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
+				exit_status = -1;
+				goto clean_up;
+			}
+			if (response.response_type == OK) {
+				if (filerail_send(fd, (void *)&offset, sizeof(offset), 0) == -1) {
+					exit_status = -1;
+					goto clean_up;
+				}
+				printf("Resuming from previous checkpoint...\n");
+			} else if (response.response_type == ABORT) {
+				// do nothing restart the process
+			} else {
+				PRINT(printf("PROTOCOL NOT FOLLOWED\n"););
+			}
+		} else {
+			LOG(LOG_USER | LOG_ERR, "You don't have read permission");
+			exit_status = -1;
+			goto clean_up;
+		}
+	} else {
+		restart:
+		if (filerail_send_command_header(fd, RESTART) == -1) {
+			exit_status = -1;
+			goto clean_up;
+		}
+	}
+
   PRINT(printf("Waiting for server to respond...\n"));
   start = clock();
-  if (filerail_recvfile(fd, resource_path, &K) == -1) {
+  if (filerail_recvfile(fd, resource_path, &K, offset, ckpt_resource_path, resource_path) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -231,11 +342,6 @@ int filerail_recvfile_handler(
 	PRINT(printf("Finished...\n"));
 
   PRINT(printf("Verifying hash...\n"));
-  if (filerail_recv(fd, (void *)recvd_hash, MD5_DIGEST_LENGTH, 0) == -1) {
-  	exit_status = -1;
-  	goto clean_up;
-  }
-
   if (memcmp(computed_hash, recvd_hash, MD5_DIGEST_LENGTH) == 0) {
   	if (filerail_send_response_header(fd, OK) == -1) {
   		exit_status = -1;
@@ -269,7 +375,15 @@ int filerail_recvfile_handler(
   	goto clean_up;
   }
 
+  if (filerail_rm(ckpt_resource_path) == -1) {
+  	exit_status = -1;
+  	goto clean_up;
+  }
+
 	clean_up:
+	if (fp != NULL) {
+		fclose(fp);
+	}
 	return exit_status;
 }
 

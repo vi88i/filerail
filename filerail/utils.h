@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <sys/types.h>
 #include <openssl/md5.h>
 
 #include "global.h"
@@ -33,6 +34,9 @@ bool zip_extract_resource(const char *source_path, const char *destination_path)
 int filerail_rm(const char *resource_path);
 void filerail_progress_bar(double fraction);
 int filerail_md5(unsigned char *hash, const char *zip_filename);
+int filerail_mkdir(const char *dir_path);
+void filerail_hash_to_string(const unsigned char *hash, char *hex_str);
+char filerail_to_hex(unsigned char c);
 
 bool filerail_check_storage_size(off_t resource_size) {
 	struct statvfs buf;
@@ -363,6 +367,45 @@ int filerail_md5(unsigned char *hash, const char *zip_filename) {
 		fclose(fp);
 	}
 	return exit_status;
+}
+
+int filerail_mkdir(const char *dir_path) {
+	if (mkdir(dir_path, 0777) == -1) {
+		LOG(LOG_USER | LOG_ERR, "utils.h filerail_mkdir mkdir");
+		return -1;
+	}
+	return 0;
+}
+
+char filerail_to_char(unsigned char c) {
+	switch(c) {
+		case 0: return '0';
+		case 1: return '1';
+		case 2: return '2';
+		case 3: return '3';
+		case 4: return '4';
+		case 5: return '5';
+		case 6: return '6';
+		case 7: return '7';
+		case 8: return '8';
+		case 9: return '9';
+		case 10: return 'a';
+		case 11: return 'b';
+		case 12: return 'c';
+		case 13: return 'd';
+		case 14: return 'e';
+		case 15: return 'f';
+	}
+	return '0';
+}
+
+void filerail_hash_to_string(const unsigned char *hash, char *hex_str) {
+	int i;
+
+	for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
+		hex_str[2 * i] = filerail_to_char((0xf0 & hash[i]) >> 4);
+		hex_str[2 * i + 1] = filerail_to_char(0x0f & hash[i]);
+	}
 }
 
 #endif

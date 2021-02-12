@@ -23,7 +23,7 @@ $ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
-# usage: -v [-i ipv4 address] [-p port] [-k key directory]
+# usage: -v [-i ipv4 address] [-p port] [-k key directory] [-c checkpoints directory]
 ```
 
 ```bash
@@ -37,6 +37,7 @@ options:
 3. -i : IPv4 address of server
 4. -p : port
 5. -k : key directory (requires absolute path to key directory)
+6. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
 ## On client side
@@ -48,7 +49,8 @@ $ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
-# usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path] [-k key directory]
+# usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] 
+#           [-d destination path] [-k key directory] [-c checkpoints directory]
 ```
 
 ```text
@@ -61,6 +63,7 @@ options:
 6. -r : resource path (requires absolute path to resource)
 7. -d : destination path (requires absolute path to destination)
 8. -k : key directory (requires absolute path to key directory)
+9. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
 ### ping
@@ -73,13 +76,13 @@ PONG
 ### Upload file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key -c /home/ckpt
 ```
 
 ### Download file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key -c /home/ckpt
 ```
 
 ---
