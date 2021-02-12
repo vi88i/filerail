@@ -5,6 +5,13 @@
 
 ---
 
+# How filerail works ?
+
+- Client establishes TCP connection with server.
+- Client exchanges messages by using custom protocol, to perform various checks for given operation.
+- To send resource, the sender zips the resource, encrypts it and advertises the hash of zipped file.
+- The receiver decrypts, verifies the hash and only then unzip the downloaded file.
+
 # Setup
 
 ## On server side
@@ -101,15 +108,8 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ---
 
-## Few notes
-
-- Can handle transferring of both files and directories (any resource will be zipped).
-
----
-
 ## Upcoming features
 
-- Hash verification of file
 - Save checkpoints while download/upload
 
 ---
