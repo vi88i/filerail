@@ -80,7 +80,7 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 ## Setup keys
 
 - filerail uses AES (CTR mode).
-- It requires two keys stored in two separate files, and both keys are of 128-bit length.
+- It requires two keys stored in two separate files (in single directory), and both keys are of 128-bit length.
 - Pair of hex digits are separated by space, and last hex digit is delimited by newline (\n).
 
 ### Example
