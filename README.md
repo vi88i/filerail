@@ -16,17 +16,11 @@ $ gcc -o filerail_server filerail_server.c
 ```
 
 ```bash
-# usage: -v [-i ipv4 address] [-p port]
+# usage: -v [-i ipv4 address] [-p port] [-k key directory]
 ```
 
 ```bash
-$ ./filerail_server -v -i 127.0.0.1 -p 8000
-```
-
-- To daemonize (it may still print stuff to the terminal, but the process goes into background. Working on syslog for server)
-
-```bash
-$ ./filerail_server -i 127.0.0.1 -p 8000 @
+$ ./filerail_server -v -i 127.0.0.1 -p 8000 -k /home/key
 ```
 
 ```text
@@ -35,6 +29,7 @@ options:
 2. -v : verbose mode on
 3. -i : IPv4 address of server
 4. -p : port
+5. -k : key directory (requires absolute path to key directory)
 ```
 
 ## On client side
@@ -46,7 +41,7 @@ $ gcc -o filerail_client filerail_client.c
 ```
 
 ```bash
-# usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path]
+# usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path] [-k key directory]
 ```
 
 ```text
@@ -58,6 +53,7 @@ options:
 5. -o : operation {put, get, ping}
 6. -r : resource path (requires absolute path to resource)
 7. -d : destination path (requires absolute path to destination)
+8. -k : key directory (requires absolute path to key directory)
 ```
 
 ### ping
@@ -70,30 +66,50 @@ PONG
 ### Upload file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key
 ```
 
 ### Download file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key
+```
+
+---
+
+## Setup keys
+
+- filerail uses AES (CTR mode).
+- It requires two keys stored in two separate files, and both keys are of 128-bit length.
+- Pair of hex digits are separated by space, and last hex digit is delimited by newline (\n).
+
+### Example
+
+#### Key file
+
+```text
+54 68 61 74 73 20 6D 79 20 4B 75 6E 67 20 46 75
+
+```
+
+#### Nonce file
+
+```text
+A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
+
 ```
 
 ---
 
 ## Few notes
 
-- Can handle transferring of both files and directories.
-- For large files and directories it will be much better, if you zip them on your own (by means of zip utility ofc) to prevent timeout errors.
-- There exists a time out period of 10 hours on socket, after which connection is closed and process is aborted.
-- Your data is not encrypted.
+- Can handle transferring of both files and directories (any resource will be zipped).
 
 ---
 
 ## Upcoming features
 
 - Hash verification of file
-- Adding SSL layer or some sort of authentication
 - Save checkpoints while download/upload
 
 ---
