@@ -18,6 +18,7 @@
 #include "constants.h"
 #include "protocol.h"
 #include "utils.h"
+#include "aes128.h"
 
 #define min(a, b) ((a) > (b) ? (b) : (a))
 
@@ -35,8 +36,8 @@ int filerail_who(int fd, const char *action);
 int filerail_send_command_header(int fd, int type);
 int filerail_send_response_header(int fd, int type);
 int filerail_send_resource_header(int fd, char *name, char *dir, off_t size);
-int filerail_sendfile(int fd, const char *zip_filename);
-int filerail_recvfile(int fd, const char *zip_filename);
+int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K);
+int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K);
 
 static int filerail_socket(int domain, int type, int protocol) {
 	int fd;
@@ -223,13 +224,13 @@ int filerail_who(int fd, const char *action) {
 	return 0;
 }
 
-int filerail_sendfile(int fd, const char *zip_filename) {
+int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K) {
 	int exit_status;
 	off_t size, total;
 	size_t nbytes;
 	FILE *fp;
 	struct stat stat_path;
-	unsigned char buffer[BUFFER_SIZE];
+	filerail_data_packet data;
 
 	exit_status = 0;
 
@@ -256,13 +257,15 @@ int filerail_sendfile(int fd, const char *zip_filename) {
 
 	total = size = stat_path.st_size;
   while (size != 0) {
-  	nbytes = fread((void *)buffer, 1, min(BUFFER_SIZE, size), fp);
+  	nbytes = fread((void *)data.data_payload, 1, min(BUFFER_SIZE, size), fp);
   	if (nbytes != min(BUFFER_SIZE, size) && ferror(fp)) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fread");
 			exit_status = -1;
 			goto clean_up;
   	}
-  	if (filerail_send(fd, (void *)buffer, nbytes, 0) == -1) {
+  	data.data_padding = AES_CTR(data.data_payload, nbytes, K);
+  	data.data_size = nbytes;
+  	if (filerail_send(fd, (void *)&data, sizeof(data), 0) == -1) {
   		exit_status = -1;
   		goto clean_up;
   	}
@@ -278,13 +281,14 @@ int filerail_sendfile(int fd, const char *zip_filename) {
 	return exit_status;
 }
 
-int filerail_recvfile(int fd, const char *zip_filename) {
+int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K) {
 	int exit_status;
 	ssize_t nbytes;
 	off_t size, total;
 	FILE *fp;
 	unsigned char buffer[BUFFER_SIZE];
 	filerail_resource_header resource;
+	filerail_data_packet data;
 
 	exit_status = 0;
 
@@ -302,11 +306,12 @@ int filerail_recvfile(int fd, const char *zip_filename) {
 
 	total = size = resource.resource_size;
 	while (size != 0) {
-		nbytes = min(BUFFER_SIZE, size);
-		if (filerail_recv(fd, (void *)buffer, nbytes, MSG_WAITALL) == -1) {
+		if (filerail_recv(fd, (void *)&data, sizeof(data), MSG_WAITALL) == -1) {
 			goto clean_up;
 		}
-		if (fwrite((void *)buffer, 1, nbytes, fp) != nbytes && ferror(fp)) {
+		nbytes = data.data_size;
+		AES_CTR(data.data_payload, nbytes + data.data_padding, K);
+		if (fwrite((void *)data.data_payload, 1, nbytes, fp) != nbytes && ferror(fp)) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
 			exit_status = -1;
 			goto clean_up;

@@ -44,4 +44,11 @@ typedef struct _filerail_resource_header {
 	char resource_dir[MAX_PATH_LENGTH];
 } filerail_resource_header;
 
+// packet which transports encrypted data
+typedef struct _filerail_data_packet {
+	char data_payload[BUFFER_SIZE]; // data
+	size_t data_size; // size of actual data
+	size_t data_padding; // padding added by AES encryption
+} filerail_data_packet;
+
 #endif

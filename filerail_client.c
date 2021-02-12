@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
 
 	int fd, exit_status;
 	char c, option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
-	char *ip, *port, *operation, *res_path, *des_path;
+	char *ip, *port, *operation, *res_path, *des_path, *key_path;
 	struct stat stat_path;
 	filerail_command_header command;
 	filerail_response_header response;
@@ -25,11 +25,11 @@ int main(int argc, char *argv[]) {
 
 	exit_status = 0;
 
-	ip = port = operation = res_path = des_path = NULL;
-	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:")) != -1) {
+	ip = port = operation = res_path = des_path = key_path = NULL;
+	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:k:")) != -1) {
 		switch(opt) {
 			case 'u' : {
-				printf("usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path]\n");
+				printf("usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] [-d destination path] [-k key directory]\n");
 				goto clean_up;
 			}
 			case 'v': {
@@ -56,8 +56,12 @@ int main(int argc, char *argv[]) {
 				des_path = optarg;
 				break;
 			}
+			case 'k' : {
+				key_path = optarg;
+				break;
+			}
 			case '?' : {
-				if (optopt == 'i' || optopt == 'p' || optopt == 'o' || optopt == 'r' || optopt == 'd') {
+				if (optopt == 'i' || optopt == 'p' || optopt == 'o' || optopt == 'r' || optopt == 'd' || optopt == 'k') {
 					printf("-%c option requires value\n", optopt);
 					goto clean_up;
 				} else {
@@ -72,8 +76,13 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (ip == NULL || port == NULL || operation == NULL) {
-		printf("-i, -p and -a are required options\n");
+	if (ip == NULL || port == NULL || operation == NULL || (strcmp("ping", operation) && key_path == NULL)) {
+		printf("-i, -p, -a and -k are required options\n");
+		goto clean_up;
+	}
+
+	if (!filerail_is_exists(key_path, &stat_path)) {
+		printf("Couldn't open key directory\n");
 		goto clean_up;
 	}
 
@@ -126,7 +135,7 @@ int main(int argc, char *argv[]) {
 								}
 								put_file:
 								printf("Starting transfer process...\n");
-								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path) == -1) {
+								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path, key_path) == -1) {
 									exit_status = -1;
 								}
 							} else {
@@ -135,7 +144,7 @@ int main(int argc, char *argv[]) {
 								}
 							}
 						} else if (response.response_type == NOT_FOUND) {
-							printf("%s not able to locate\n", des_path);
+							printf("Unable to locate %s\n", des_path);
 						} else if (response.response_type == INSUFFICIENT_SPACE) {
 							printf("Insufficient space on server\n");
 						} else if (response.response_type == OK) {
@@ -193,7 +202,7 @@ int main(int argc, char *argv[]) {
 									exit_status = -1;
 								}
 								strcat(resource_path, ".zip");
-								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path) == -1) {
+								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, key_path) == -1) {
 									exit_status = -1;
 								}
 							} else {

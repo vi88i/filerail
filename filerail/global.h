@@ -6,7 +6,7 @@
 
 #define PRINT(x) 							 \
 	if (verbose && !is_server) { \
-		x;					 							 \
+		x;					 	             \
 	}
 
 #define LOG(p, m) 				 \

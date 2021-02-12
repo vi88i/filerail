@@ -263,7 +263,7 @@ bool filerail_parse_resource_path(const char *resource_path, char *resource_name
 		printf("Resource path must be absolute\n");
 		return false;
 	}
-	if (path_len - i - 1 > MAX_RESOURCE_LENGTH) {
+	if (path_len - i - 1 > MAX_RESOURCE_LENGTH - 1) {
 		printf("Length of resource name exceeded MAX_RESOURCE_LENGTH\n");
 		return false;
 	}

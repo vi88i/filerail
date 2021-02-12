@@ -13,17 +13,37 @@
 #include "protocol.h"
 #include "socket.h"
 #include "utils.h"
+#include "aes128.h"
 #include "../deps/kuba__zip/zip.h"
 
-int filerail_sendfile_handler(int fd, const char *resource_dir, const char *resource_name, struct stat *stat_resource);
-int filerail_recvfile_handler(int fd, const char *resource_name, const char *resource_dir, const char *resource_path);
+int filerail_sendfile_handler(
+	int fd,
+	const char *resource_dir,
+	const char *resource_name,
+	struct stat *stat_resource,
+	const char *key_path);
 
-int filerail_sendfile_handler(int fd, const char *resource_dir, const char *resource_name, struct stat *stat_resource) {
+int filerail_recvfile_handler(
+	int fd,
+	const char *resource_name,
+	const char *resource_dir,
+	const char *resource_path,
+	const char *key_path);
+
+int filerail_sendfile_handler(
+	int fd,
+	const char *resource_dir,
+	const char *resource_name,
+	struct stat *stat_resource,
+	const char *key_path)
+{
 	int exit_status;
 	char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH];
 	struct zip_t *zip;
 	clock_t start, end;
 	double cpu_time_used;
+	aesCryptoInfo ci;
+	AES_keys K;
 
 	exit_status = 0;
 
@@ -31,6 +51,27 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 		exit_status = -1;
 		goto clean_up;
 	}
+
+	PRINT(printf("Generating keys...\n"));
+	if (filerail_cd(key_path) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	ci = (aesCryptoInfo){"key.txt", "nonce.txt"};
+	if (readNonce(ci.nonce_file, &K) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	if (readKey(ci.key_file, &K) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	generateRoundKeys(&K);
+	if (filerail_cd(current_dir) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	PRINT(printf("Finished...\n"));
 
 	if (filerail_cd(resource_dir) == -1) {
 		exit_status = -1;
@@ -67,7 +108,7 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 
 	PRINT(printf("Ready to send resource...\n"));
   start = clock();
-  if (filerail_sendfile(fd, zip_filename) == -1) {
+  if (filerail_sendfile(fd, zip_filename, &K) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -89,12 +130,19 @@ int filerail_sendfile_handler(int fd, const char *resource_dir, const char *reso
 	return exit_status;
 }
 
-int filerail_recvfile_handler(int fd, const char *resource_name, const char *resource_dir, const char *resource_path) {
+int filerail_recvfile_handler(
+	int fd,
+	const char *resource_name,
+	const char *resource_dir,
+	const char *resource_path,
+	const char *key_path)
+{
   int exit_status;
   char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH];
 	clock_t start, end;
 	double cpu_time_used;
-
+	aesCryptoInfo ci;
+	AES_keys K;
 
   exit_status = 0;
 
@@ -103,9 +151,30 @@ int filerail_recvfile_handler(int fd, const char *resource_name, const char *res
   	goto clean_up;
   }
 
+	PRINT(printf("Generating keys...\n"));
+	if (filerail_cd(key_path) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	ci = (aesCryptoInfo){"key.txt", "nonce.txt"};
+	if (readNonce(ci.nonce_file, &K) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	if (readKey(ci.key_file, &K) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	generateRoundKeys(&K);
+	if (filerail_cd(current_dir) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	PRINT(printf("Finished...\n"));
+
   PRINT(printf("Waiting for server to respond...\n"));
   start = clock();
-  if (filerail_recvfile(fd, resource_path) == -1) {
+  if (filerail_recvfile(fd, resource_path, &K) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
