@@ -19,4 +19,6 @@
 int verbose = 0;
 int is_server = 0;
 
+#define min(a, b) ((a) > (b) ? (b) : (a))
+
 #endif

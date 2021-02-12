@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
+#include <openssl/md5.h>
 
 #include "global.h"
 #include "protocol.h"
@@ -42,8 +43,10 @@ int filerail_sendfile_handler(
 	struct zip_t *zip;
 	clock_t start, end;
 	double cpu_time_used;
+	unsigned char hash[MD5_DIGEST_LENGTH];
 	aesCryptoInfo ci;
 	AES_keys K;
+	filerail_response_header response;
 
 	exit_status = 0;
 
@@ -86,7 +89,7 @@ int filerail_sendfile_handler(
 	if (S_ISDIR(stat_resource->st_mode)) {
 		if (
 			(zip = zip_open(zip_filename, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w')) == NULL ||
-			filerail_zip_folder(zip, resource_name) == -1
+			!filerail_zip_folder(zip, resource_name)
 		)
 		{
 			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler");
@@ -95,7 +98,7 @@ int filerail_sendfile_handler(
 	} else {
 		if (
 			(zip = zip_open(zip_filename, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w')) == NULL ||
-			filerail_zip_file(zip, resource_name)
+			!filerail_zip_file(zip, resource_name)
 			)
 		{
 			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler");
@@ -104,7 +107,14 @@ int filerail_sendfile_handler(
 	}
 	zip_close(zip);
 	zip = NULL;
-	PRINT(printf("Resource zipped...\n"););
+	PRINT(printf("Finished...\n"));
+
+	PRINT(printf("Generating md5 hash for zip file...\n"));
+	if (filerail_md5(hash, zip_filename) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	PRINT(printf("Finished...\n"));
 
 	PRINT(printf("Ready to send resource...\n"));
   start = clock();
@@ -115,6 +125,27 @@ int filerail_sendfile_handler(
   end = clock();
   cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
   PRINT(printf("File transfer complete in %f seconds...\n", cpu_time_used));
+
+  PRINT(printf("Sending hash...\n"));
+  if (
+  	filerail_send(fd, (void *)hash, MD5_DIGEST_LENGTH, 0) == -1 ||
+  	filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1
+  	)
+  {
+  	exit_status = -1;
+  	goto clean_up;
+  }
+
+  if (response.response_type == OK) {
+  	PRINT(printf("md5 hash matched\n"));
+  } else if (response.response_type == NO_INTEGRITY) {
+  	PRINT(printf("md5 hash didn't match on receiver end\n"));
+  	exit_status = -1;
+  } else {
+  	exit_status = -1;
+  	PRINT(printf("PROTOCOL NOT FOLLOWED\n"));
+  }
+  PRINT(printf("Finished...\n"));
 
 	if (filerail_rm(zip_filename) == -1) {
 		exit_status = -1;
@@ -141,6 +172,7 @@ int filerail_recvfile_handler(
   char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH];
 	clock_t start, end;
 	double cpu_time_used;
+	unsigned char computed_hash[MD5_DIGEST_LENGTH], recvd_hash[MD5_DIGEST_LENGTH];
 	aesCryptoInfo ci;
 	AES_keys K;
 
@@ -191,20 +223,48 @@ int filerail_recvfile_handler(
   strcpy(zip_filename, resource_name);
   strcat(zip_filename, ".zip");
 
+  PRINT(printf("Generating hash...\n"));
+	if (filerail_md5(computed_hash, zip_filename) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+	PRINT(printf("Finished...\n"));
+
+  PRINT(printf("Verifying hash...\n"));
+  if (filerail_recv(fd, (void *)recvd_hash, MD5_DIGEST_LENGTH, 0) == -1) {
+  	exit_status = -1;
+  	goto clean_up;
+  }
+
+  if (memcmp(computed_hash, recvd_hash, MD5_DIGEST_LENGTH) == 0) {
+  	if (filerail_send_response_header(fd, OK) == -1) {
+  		exit_status = -1;
+  		goto clean_up;
+  	}
+  } else {
+  	if (filerail_send_response_header(fd, NO_INTEGRITY) == -1) {
+  		exit_status = -1;
+  		goto clean_up;
+  	}
+  	goto hash_failed;
+  }
+  PRINT(printf("Finished...\n"));
+
   PRINT(printf("Unzipping...\n"));
   if (zip_extract(zip_filename, resource_dir, zip_on_extract_entry, NULL) == -1) {
   	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler");
   	exit_status = -1;
   	goto clean_up;
   }
+  PRINT(printf("Finished...\n"));
 
+  hash_failed:
   if (filerail_cd(current_dir) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
 
   if (filerail_rm(resource_path) == -1) {
-  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler");
   	exit_status = -1;
   	goto clean_up;
   }

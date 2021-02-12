@@ -9,11 +9,12 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include "../deps/kuba__zip/zip.c"
+#include <openssl/md5.h>
 
 #include "global.h"
 #include "constants.h"
 #include "protocol.h"
+#include "../deps/kuba__zip/zip.c"
 
 bool filerail_check_storage_size(off_t resource_size);
 bool filerail_is_file(struct stat *stat_resource);
@@ -31,6 +32,7 @@ int zip_on_extract_entry(const char *resource_name, void *arg);
 bool zip_extract_resource(const char *source_path, const char *destination_path);
 int filerail_rm(const char *resource_path);
 void filerail_progress_bar(double fraction);
+int filerail_md5(unsigned char *hash, const char *zip_filename);
 
 bool filerail_check_storage_size(off_t resource_size) {
 	struct statvfs buf;
@@ -79,7 +81,7 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 	if (dir == NULL) {
 		LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder opendir");
 		exit_status = false;
-		goto cleanup;
+		goto clean_up;
 	}
 
 	while ((entry = readdir(dir)) != NULL) {
@@ -90,13 +92,13 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 		snprintf(path, sizeof(path), "%s/%s", resource_path, entry->d_name);
 		if (lstat(path, &s) == -1) {
 			exit_status = false;
-			goto cleanup;
+			goto clean_up;
 		}
 		if (S_ISDIR(s.st_mode)) {
-			if (filerail_zip_folder(zip, path) == -1) {
+			if (!filerail_zip_folder(zip, path)) {
 				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder");
 				exit_status = false;
-				goto cleanup;
+				goto clean_up;
 			}
 		} else {
 			if (
@@ -106,12 +108,12 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 			) {
 				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder");
 				exit_status = false;
-				goto cleanup;
+				goto clean_up;
 			}
 		}
 	}
 
-	cleanup:
+	clean_up:
 	if (dir != NULL) {
 		closedir(dir);
 	}
@@ -132,7 +134,6 @@ bool filerail_zip_file(struct zip_t *zip, const char *resource_path) {
 
 bool filerail_zip_create(const char *resource_path) {
   bool exit_status;
-  size_t zip_filename_len;
   char zip_filename[MAX_RESOURCE_LENGTH];
   struct zip_t *zip;
 
@@ -143,10 +144,10 @@ bool filerail_zip_create(const char *resource_path) {
   if ((zip = zip_open(zip_filename, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w')) == NULL) {
 		LOG(LOG_USER | LOG_ERR, "utils.h zip_create zip_open");
 		exit_status = false;
-		goto cleanup;
+		goto clean_up;
   }
 
-  cleanup:
+  clean_up:
   zip_close(zip);
   return exit_status;
 }
@@ -171,7 +172,6 @@ bool zip_extract_resource(const char *source_path, const char *destination_path)
 
 int filerail_rm(const char *resource_path) {
   int exit_status;
-  size_t path_len;
   DIR *dir;
   char path[MAX_PATH_LENGTH];
   struct stat stat_path, stat_entry;
@@ -181,23 +181,22 @@ int filerail_rm(const char *resource_path) {
   if (lstat(resource_path, &stat_path) == -1) {
   	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat");
   	exit_status = -1;
-  	goto cleanup;
+  	goto clean_up;
   }
 
   if (S_ISREG(stat_path.st_mode) || S_ISLNK(stat_path.st_mode)) {
 	  if (unlink(resource_path) == -1) {
 	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm unlink");
 	  	exit_status = -1;
-	  	goto cleanup;
+	  	goto clean_up;
 	  }
   } else if (S_ISDIR(stat_path.st_mode)) {
 	  if ((dir = opendir(resource_path)) == NULL) {
 	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm opendir");
 	  	exit_status = -1;
-	    goto cleanup;
+	    goto clean_up;
 	  }
 
-	  path_len = strlen(resource_path);
 	  while ((entry = readdir(dir)) != NULL) {
 	    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
 	    	continue;
@@ -210,13 +209,13 @@ int filerail_rm(const char *resource_path) {
 	    if (lstat(path, &stat_entry) == -1) {
 		  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat");
 		  	exit_status = -1;
-		  	goto cleanup;
+		  	goto clean_up;
 	    }
 
 	    if (S_ISDIR(stat_entry.st_mode)) {
 	      if (filerail_rm(path) == -1) {
 	      	exit_status = -1;
-	      	goto cleanup;
+	      	goto clean_up;
 	      }
 	      continue;
 	    }
@@ -224,18 +223,18 @@ int filerail_rm(const char *resource_path) {
 	    if (unlink(path) == -1) {
 		  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_rm unlink");
 		  	exit_status = -1;
-		    goto cleanup;
+		    goto clean_up;
 	    }
 	  }
 
 	  if (rmdir(resource_path) == -1) {
 	  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_rm unlink");
 	  	exit_status = -1;
-	    goto cleanup;
+	    goto clean_up;
 	  }
   }
 
-  cleanup:
+  clean_up:
   if (dir != NULL) {
   	closedir(dir);
   }
@@ -310,6 +309,60 @@ void filerail_progress_bar(double fraction) {
 		printf(" ");
 	}
 	printf("] (%d%%)", (int)((1.0 - fraction) * 100));
+	if ((int)((1.0 - fraction) * 100) == 100) {
+		printf("\n");
+	}
+}
+
+int filerail_md5(unsigned char *hash, const char *zip_filename) {
+	int i, exit_status;
+	size_t nbytes;
+	off_t total, size;
+	unsigned char buffer[BUFFER_SIZE];
+	struct stat stat_path;
+	FILE *fp;
+	MD5_CTX mdContext;
+
+	exit_status = 0;
+
+	if ((fp = fopen(zip_filename, "rb")) == NULL) {
+		LOG(LOG_USER | LOG_ERR, "utils filerail_md5 fopen\n");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	if (stat(zip_filename, &stat_path) == -1) {
+		LOG(LOG_USER | LOG_ERR, "utils filerail_md5 stat\n");
+		exit_status = -1;
+		return exit_status;
+	}
+
+	size = total = stat_path.st_size;
+  MD5_Init(&mdContext);
+  while (size != 0) {
+  	nbytes = fread((void *)buffer, 1, min(BUFFER_SIZE, size), fp);
+  	if (nbytes != min(BUFFER_SIZE, size) && ferror(fp)) {
+			LOG(LOG_USER | LOG_ERR, "utils.h filerail_md5 fread\n");
+			exit_status = -1;
+			goto clean_up;
+  	}
+  	MD5_Update(&mdContext, buffer, nbytes);
+  	size -= nbytes;
+  	PRINT(filerail_progress_bar(size / (1.0 * total)));
+  }
+  MD5_Final(hash, &mdContext);
+
+  PRINT(printf("Hash: "));
+  for(i = 0; i < MD5_DIGEST_LENGTH; i++) {
+  	PRINT(printf("%02x", hash[i]));
+  }
+  PRINT(printf("\n"));
+
+	clean_up:
+	if (fp != NULL) {
+		fclose(fp);
+	}
+	return exit_status;
 }
 
 #endif

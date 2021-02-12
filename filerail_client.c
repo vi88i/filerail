@@ -16,10 +16,9 @@ int main(int argc, char *argv[]) {
 	extern int optopt;
 
 	int fd, exit_status;
-	char c, option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
+	char option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 	char *ip, *port, *operation, *res_path, *des_path, *key_path;
 	struct stat stat_path;
-	filerail_command_header command;
 	filerail_response_header response;
 	filerail_resource_header resource;
 

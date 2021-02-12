@@ -12,7 +12,7 @@
 - Spin filerail server.
 
 ```bash
-$ gcc -o filerail_server filerail_server.c
+$ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
@@ -37,7 +37,7 @@ options:
 - Compile client side code.
 
 ```bash
-$ gcc -o filerail_client filerail_client.c
+$ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
@@ -116,7 +116,8 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ## Dependencies
 
-- <a href="https://github.com/kuba--/zip">kuba--/zip</a> 
+- <a href="https://github.com/kuba--/zip">kuba--/zip</a> (included in deps) 
+- <a href="https://github.com/openssl/openssl">openssl</a> version: 3.0.0-alpha12-dev (not included in deps, you got to install it)
 
 ---
 

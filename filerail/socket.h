@@ -20,8 +20,6 @@
 #include "utils.h"
 #include "aes128.h"
 
-#define min(a, b) ((a) > (b) ? (b) : (a))
-
 static int filerail_socket(int domain, int type, int protocol);
 static int filerail_bind(int fd, const struct sockaddr *addr, socklen_t addrlen);
 static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrlen);
@@ -286,7 +284,6 @@ int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K) {
 	ssize_t nbytes;
 	off_t size, total;
 	FILE *fp;
-	unsigned char buffer[BUFFER_SIZE];
 	filerail_resource_header resource;
 	filerail_data_packet data;
 

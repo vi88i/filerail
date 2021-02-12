@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 	filerail_resource_header resource;
 	filerail_response_header response;
 	struct stat stat_path;
-	char resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
+	char resource_path[MAX_PATH_LENGTH];
 
 	exit_status = 0;
 	is_server = 1;

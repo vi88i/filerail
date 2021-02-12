@@ -25,6 +25,7 @@ enum RESPONSE {
 	BAD_RESOURCE, // bad resource (not file or directory)
 	INSUFFICIENT_SPACE, // insufficient storage on server
 	DUPLICATE_RESOURCE_NAME, // two resource having same name
+	NO_INTEGRITY // to indicate md5 hash calculated at receiver is not same as advertised md5 hash
 };
 
 // command structure
@@ -46,7 +47,7 @@ typedef struct _filerail_resource_header {
 
 // packet which transports encrypted data
 typedef struct _filerail_data_packet {
-	char data_payload[BUFFER_SIZE]; // data
+	unsigned char data_payload[BUFFER_SIZE]; // data
 	size_t data_size; // size of actual data
 	size_t data_padding; // padding added by AES encryption
 } filerail_data_packet;
