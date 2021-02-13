@@ -16,23 +16,25 @@ int main(int argc, char *argv[]) {
 	extern int optopt;
 
 	int fd, exit_status;
+	bool should_resolve;
 	char option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 	char *ip, *port, *operation, *res_path, *des_path, *key_path, *ckpt_path;
 	struct stat stat_path;
 	filerail_response_header response;
 	filerail_resource_header resource;
 
+	should_resolve = false;
 	exit_status = 0;
 
 	ip = port = operation = res_path = des_path = key_path = ckpt_path = NULL;
-	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:k:c:")) != -1) {
+	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:k:c:n")) != -1) {
 		switch(opt) {
 			case 'u' : {
 				printf(
 					"usage: -v [-i ipv4 address] [-p port]"
-					"[-o operation] [-r resource path]"
-					"[-d destination path] [-k key directory]"
-					"[-c checkpoint directory]\n"
+					" [-o operation] [-r resource path]"
+					" [-d destination path] [-k key directory]"
+					" [-c checkpoint directory] [-n dns resolution]\n"
 				);
 				goto clean_up;
 			}
@@ -66,6 +68,10 @@ int main(int argc, char *argv[]) {
 			}
 			case 'c' : {
 				ckpt_path = optarg;
+				break;
+			}
+			case 'n' : {
+				should_resolve = true;
 				break;
 			}
 			case '?' : {
@@ -109,6 +115,10 @@ int main(int argc, char *argv[]) {
 			exit_status = -1;
 			goto clean_up;
 		}
+	}
+
+	if (should_resolve && (filerail_dns_resolve(ip) == -1)) {
+		goto clean_up;
 	}
 
 	if ((fd = filerail_connect_to_tcp_server(ip, port)) == -1) {

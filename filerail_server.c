@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
 	extern int is_server;
 
 	int fd, clifd, exit_status;
+	bool should_resolve;
 	pid_t pid;
 	socklen_t addrlen;
 	struct sockaddr_in cliaddr;
@@ -31,13 +32,17 @@ int main(int argc, char *argv[]) {
 	char resource_path[MAX_PATH_LENGTH];
 
 	exit_status = 0;
+	should_resolve = false;
 	is_server = 1;
 
 	ip = port = key_path = ckpt_path = NULL;
-	while ((opt = getopt(argc, argv, "uvqi:p:k:m:c:")) != -1) {
+	while ((opt = getopt(argc, argv, "uvqi:p:k:m:c:n")) != -1) {
 		switch(opt) {
 			case 'u' : {
-				printf("usage: -v [-i ipv4 address] [-p port] [-k key directory] [-c checkpoint directory]\n");
+				printf(
+					"usage: -v [-i ipv4 address]"
+					" [-p port] [-k key directory]"
+					" [-c checkpoint directory] [-n dns resolution]\n");
 				goto parent_clean_up;
 			}
 			case 'v': {
@@ -62,6 +67,10 @@ int main(int argc, char *argv[]) {
 			}
 			case 'c' : {
 				ckpt_path = optarg;
+				break;
+			}
+			case 'n' : {
+				should_resolve = true;
 				break;
 			}
 			case '?' : {
@@ -96,6 +105,10 @@ int main(int argc, char *argv[]) {
 			exit_status = -1;
 			goto parent_clean_up;
 		}
+	}
+
+	if (should_resolve && (filerail_dns_resolve(ip) == -1)) {
+		goto parent_clean_up;
 	}
 
 	if ((fd = filerail_create_tcp_server(ip, port)) == -1) {

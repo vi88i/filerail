@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
@@ -26,6 +27,7 @@ static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrl
 static int filerail_listen(int fd, int backlog);
 static int filerail_setsockopt(int fd, int level, int option, const void *optval, socklen_t optlen);
 static int filerail_is_fd_valid(int fd);
+int filerail_dns_resolve(char *hostname);
 int firerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen);
 int filerail_close(int fd);
 int filerail_create_tcp_server(char *ip, char *port);
@@ -236,6 +238,7 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
 	FILE *fp;
 	struct stat stat_path;
 	filerail_data_packet data;
+	filerail_response_header response;
 
 	fp = NULL;
 	exit_status = 0;
@@ -285,6 +288,15 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
   		goto clean_up;
   	}
   	size -= nbytes;
+  	if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
+  		exit_status = -1;
+  		goto clean_up;
+  	}
+  	if (response.response_type != OK) {
+  		LOG(LOG_USER | LOG_INFO, "No ACK\n");
+  		exit_status = -1;
+  		goto clean_up;
+  	}
   	PRINT(filerail_progress_bar(size / (1.0 * total)));
   }
 
@@ -362,18 +374,19 @@ int filerail_recvfile(
 			exit_status = -1;
 			goto clean_up;
 		}
-		// best practice (to flush everything in stream to be fully sure everything is written to file)
 		fflush(fckpt);
-		// important to close file before reading from it
 		fclose(fckpt);
 		fckpt = NULL;
-		// rename is atomic, this ensures that content written to file is not corrupted
 		if (rename(tmp_ckpt_resource_path, ckpt_resource_path) == -1) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile rename");
 			exit_status = -1;
 			goto clean_up;
 		}
   	size -= nbytes;
+		if (filerail_send_response_header(fd, OK) == -1) {
+			exit_status = -1;
+			goto clean_up;
+		}
   	PRINT(filerail_progress_bar(size / (1.0 * total)););
 	}
 
@@ -415,6 +428,26 @@ int filerail_send_resource_header(int fd, char *name, char *dir, off_t size) {
 	if (filerail_send(fd, (void*)&resource, sizeof(resource), 0) == -1) {
 		return -1;
 	}
+	return 0;
+}
+
+int filerail_dns_resolve(char *hostname) {
+	struct hostent *info;
+
+	info = gethostbyname(hostname);
+	if (info == NULL) {
+		LOG(LOG_USER | LOG_ERR, "DNS query failed\n");
+		return -1;
+	}
+	if (info->h_addrtype != AF_INET) {
+		LOG(LOG_USER | LOG_INFO, "Failed to get IPv4 address\n");
+		return -1;
+	}
+	if (info->h_addr_list[0] == NULL) {
+		LOG(LOG_USER | LOG_INFO, "Didn't find IPv4 address\n");
+		return -1;
+	}
+	hostname = inet_ntoa(*(struct in_addr*)(info->h_addr_list[0]));
 	return 0;
 }
 

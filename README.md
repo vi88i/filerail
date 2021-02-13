@@ -28,7 +28,7 @@ $ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
-# usage: -v [-i ipv4 address] [-p port] [-k key directory] [-c checkpoints directory]
+# usage: -v -d [-i ipv4 address] [-p port] [-k key directory] [-c checkpoints directory]
 ```
 
 ```bash
@@ -39,10 +39,11 @@ $ ./filerail_server -v -i 127.0.0.1 -p 8000 -k /home/key -c /home/server_ckpts
 options:
 1. -u : usage
 2. -v : verbose mode on
-3. -i : IPv4 address of server
-4. -p : port
-5. -k : key directory (requires absolute path to key directory)
-6. -c : checkpoints directory (requires absolute path to checkpoints directory)
+3. -d : DNS resolution of provided DNS name
+4. -i : IPv4 address of server
+5. -p : port
+6. -k : key directory (requires absolute path to key directory)
+7. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
 ## On client side
@@ -54,7 +55,7 @@ $ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
-# usage: -v [-i ipv4 address] [-p port] [-o operation] [-r resource path] 
+# usage: -v -d [-i ipv4 address] [-p port] [-o operation] [-r resource path] 
 #           [-d destination path] [-k key directory] [-c checkpoints directory]
 ```
 
@@ -62,13 +63,14 @@ $ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 options:
 1. -u : usage
 2. -v : verbose mode on
-3. -i : IPv4 address of server
-4. -p : port
-5. -o : operation {put, get, ping}
-6. -r : resource path (requires absolute path to resource)
-7. -d : destination path (requires absolute path to destination)
-8. -k : key directory (requires absolute path to key directory)
-9. -c : checkpoints directory (requires absolute path to checkpoints directory)
+3. -d : DNS resolution of provided DNS name
+4. -i : IPv4 address of server
+5. -p : port
+6. -o : operation {put, get, ping}
+7. -r : resource path (requires absolute path to resource)
+8. -d : destination path (requires absolute path to destination)
+9. -k : key directory (requires absolute path to key directory)
+10. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
 ### ping

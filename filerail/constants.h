@@ -8,5 +8,6 @@
 #define BACKLOG 8
 #define PROGRESS_BAR_WIDTH 50
 #define TIME_OUT 36000
+#define MAX_IO_TIME_OUT 2
 
 #endif
