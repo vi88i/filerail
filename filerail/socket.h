@@ -309,23 +309,21 @@ int filerail_recvfile(
 	ssize_t nbytes;
 	off_t size, total;
 	FILE *fp, *fckpt;
+	char tmp_ckpt_resource_path[MAX_PATH_LENGTH];
 	filerail_resource_header resource;
 	filerail_data_packet data;
 	filerail_checkpoint ckpt;
 
 	fp = fckpt = NULL;
 	exit_status = 0;
+	ckpt.resource_path[0] = '\0';
 	strcpy(ckpt.resource_path, resource_path);
+	tmp_ckpt_resource_path[0] = '\0';
+	strcpy(tmp_ckpt_resource_path, ckpt_resource_path);
+	strcat(tmp_ckpt_resource_path, ".tmp");
 
-	fp = fopen(zip_filename, "wb");
+	fp = fopen(zip_filename, "ab");
 	if (fp == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
-		exit_status = -1;
-		goto clean_up;
-	}
-
-	fckpt = fopen(ckpt_resource_path, "wb");
-	if (fckpt == NULL) {
 		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
 		exit_status = -1;
 		goto clean_up;
@@ -338,13 +336,6 @@ int filerail_recvfile(
 
 	total = size = resource.resource_size;
 	size -= offset;
-
-	rewind(fp);
-	if (fseek(fp, offset, SEEK_CUR) == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fseek");
-		exit_status = -1;
-		goto clean_up;
-	}
 
 	ckpt.offset = offset;
 	while (size != 0) {
@@ -360,13 +351,28 @@ int filerail_recvfile(
 		}
 		fflush(fp);
 		ckpt.offset += nbytes;
-		rewind(fckpt);
+		fckpt = fopen(tmp_ckpt_resource_path, "wb");
+		if (fckpt == NULL) {
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
+			exit_status = -1;
+			goto clean_up;
+		}
 		if (fwrite((void *)&ckpt, 1, sizeof(ckpt), fckpt) != sizeof(ckpt)) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
 			exit_status = -1;
 			goto clean_up;
 		}
+		// best practice (to flush everything in stream to be fully sure everything is written to file)
 		fflush(fckpt);
+		// important to close file before reading from it
+		fclose(fckpt);
+		fckpt = NULL;
+		// rename is atomic, this ensures that content written to file is not corrupted
+		if (rename(tmp_ckpt_resource_path, ckpt_resource_path) == -1) {
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile rename");
+			exit_status = -1;
+			goto clean_up;
+		}
   	size -= nbytes;
   	PRINT(filerail_progress_bar(size / (1.0 * total)););
 	}

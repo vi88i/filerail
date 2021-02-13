@@ -254,13 +254,14 @@ int filerail_recvfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
-	PRINT(printf("Receving md5 hash\n"););
+	PRINT(printf("Waiting for md5 hash...\n"););
 	if (filerail_recv(fd, (void *)recvd_hash, MD5_DIGEST_LENGTH, 0) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
   PRINT(printf("Finished...\n"));
 
+  PRINT(printf("Searching for checkpoints...\n"));
 	ckpt_resource_path[0] = '\0';
 	strcpy(ckpt_resource_path, ckpt_path);
 	filerail_hash_to_string(recvd_hash, hex_str);
@@ -270,19 +271,28 @@ int filerail_recvfile_handler(
 	if (filerail_is_exists(ckpt_resource_path, &stat_path)) {
 		if (filerail_is_readable(ckpt_resource_path)) {
 			if ((fp = fopen(ckpt_resource_path, "rb")) == NULL) {
-				LOG(LOG_USER | LOG_ERR, "utils.h filerail_recvfile_handler fopen");
+				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fopen");
 				exit_status = -1;
-				goto clean_up;
-			}
-			if (fread((void *)&ckpt, 1, sizeof(ckpt), fp) != sizeof(ckpt)) {
-				LOG(LOG_USER | LOG_ERR, "utils.h filerail_recvfile_handler fread");
-				exit_status = -1;
-				goto clean_up;
-			}
-			if (strcmp(ckpt.resource_path, resource_path) != 0) {
 				goto restart;
 			}
-			offset = ckpt.offset;
+			if (fread((void *)&ckpt, 1, sizeof(ckpt), fp) != sizeof(ckpt)) {
+				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fread");
+				exit_status = -1;
+				goto restart;
+			}
+			if (strcmp(ckpt.resource_path, resource_path) != 0) {
+				PRINT(printf("Resource path in checkpoint doesn't match resource path of request...\n"));
+				goto restart;
+			}
+			if (stat(resource_path, &stat_path) == -1) {
+				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler stat");
+				exit_status = -1;
+				goto restart;
+			}
+			if (ckpt.offset != stat_path.st_size) {
+				PRINT(printf("Offset of checkpoint doesn't match resource size...\n"));
+				goto restart;
+			}
 			if (filerail_send_command_header(fd, RESUME) == -1) {
 				exit_status = -1;
 				goto clean_up;
@@ -292,15 +302,17 @@ int filerail_recvfile_handler(
 				goto clean_up;
 			}
 			if (response.response_type == OK) {
+				offset = ckpt.offset;
 				if (filerail_send(fd, (void *)&offset, sizeof(offset), 0) == -1) {
 					exit_status = -1;
 					goto clean_up;
 				}
-				printf("Resuming from previous checkpoint...\n");
+				PRINT(printf("Resuming from previous checkpoint...\n"));
 			} else if (response.response_type == ABORT) {
 				// do nothing restart the process
 			} else {
-				PRINT(printf("PROTOCOL NOT FOLLOWED\n"););
+				PRINT(printf("PROTOCOL NOT FOLLOWED\n"));
+				goto clean_up;
 			}
 		} else {
 			LOG(LOG_USER | LOG_ERR, "You don't have read permission");
@@ -309,6 +321,7 @@ int filerail_recvfile_handler(
 		}
 	} else {
 		restart:
+		PRINT(printf("No checkpoints found...\n"));
 		if (filerail_send_command_header(fd, RESTART) == -1) {
 			exit_status = -1;
 			goto clean_up;
@@ -352,6 +365,7 @@ int filerail_recvfile_handler(
   		exit_status = -1;
   		goto clean_up;
   	}
+  	PRINT(printf("md5 hash doesn't match...\n"));
   	goto hash_failed;
   }
   PRINT(printf("Finished...\n"));
