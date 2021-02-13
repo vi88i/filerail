@@ -246,7 +246,6 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
 	fp = NULL;
 	exit_status = 0;
 
-	// open file
 	fp = fopen(zip_filename, "rb");
 	if (fp == NULL) {
 		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fopen");
@@ -260,7 +259,6 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
 		goto clean_up;
 	}
 
-	// advertize size of file
 	if (filerail_send_resource_header(fd, "\0", "\0", stat_path.st_size) == -1) {
 		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile filerail_send_resource_header");
 		exit_status = -1;

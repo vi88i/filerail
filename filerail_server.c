@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 
 #include "filerail/global.h"
@@ -21,7 +22,7 @@ int main(int argc, char *argv[]) {
 
 	int fd, clifd, exit_status;
 	bool should_resolve;
-	pid_t pid;
+	pid_t pid, sid;
 	socklen_t addrlen;
 	struct sockaddr_in cliaddr;
 	char *ip, *port, *key_path, *ckpt_path;
@@ -110,6 +111,34 @@ int main(int argc, char *argv[]) {
 	if (should_resolve && (filerail_dns_resolve(ip) == -1)) {
 		goto parent_clean_up;
 	}
+
+	pid = fork();
+	if (pid < 0) {
+		exit_status = -1;
+		goto parent_clean_up;
+	}
+
+	if (pid > 0) {
+		goto parent_clean_up;
+	}
+
+	umask(0);
+	openlog("filerail", LOG_PID, LOG_USER);
+
+	sid = setsid();
+	if (sid < 0) {
+		exit_status = -1;
+		goto parent_clean_up;
+	}
+
+	if (chdir("/") < 0) {
+		exit_status = -1;
+		goto parent_clean_up;
+	}
+
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
 
 	if ((fd = filerail_create_tcp_server(ip, port)) == -1) {
 		exit_status = -1;
@@ -296,5 +325,7 @@ int main(int argc, char *argv[]) {
 	} else {
 		LOG(LOG_INFO | LOG_USER, "parent process, SUCCESS");
 	}
+	closelog();
+	while (wait(NULL) > 0);
 	return exit_status;
 }
