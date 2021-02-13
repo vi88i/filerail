@@ -46,6 +46,13 @@ options:
 7. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
+- To check if server is running
+
+```bash
+$ sudo netstat -pln | grep 8000
+# if it doen't display anything something went wrong
+```
+
 ## On client side
 
 - Compile client side code.
