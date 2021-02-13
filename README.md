@@ -5,12 +5,17 @@
 
 ---
 
+# Features
+
+- Single command upload and download feature.
+- Checkpointing download and upload, and resume back whenever you are back online.
+- Compresses your data before sending.
+- Encryption using AES-128 in CTR mode of operation.
+- Uses MD5 hash to verify integrity at receiver side.
+
 # How filerail works ?
 
-- Client establishes TCP connection with server.
-- Client exchanges messages by using custom protocol, to perform various checks for given operation.
-- To send resource, the sender zips the resource, encrypts it and advertises the hash of zipped file.
-- The receiver decrypts, verifies the hash and only then unzip the downloaded file.
+An application layer protocol built on top of TCP. After connection establishment, client and server exchange messages to check if request made by client is feasible. Once request is deemed feasible, file/directory transfer process starts.
 
 # Setup
 
