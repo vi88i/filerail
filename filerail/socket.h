@@ -27,6 +27,7 @@ static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrl
 static int filerail_listen(int fd, int backlog);
 static int filerail_setsockopt(int fd, int level, int option, const void *optval, socklen_t optlen);
 static int filerail_is_fd_valid(int fd);
+static int filerail_set_timeout(int fd, int level, int option, int s, int u);
 int filerail_dns_resolve(char *hostname);
 int firerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen);
 int filerail_close(int fd);
@@ -37,14 +38,7 @@ int filerail_send_command_header(int fd, int type);
 int filerail_send_response_header(int fd, int type);
 int filerail_send_resource_header(int fd, char *name, char *dir, off_t size);
 int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offset);
-int filerail_recvfile(
-	int fd,
-	const char *zip_filename,
-	AES_keys *K,
-	off_t offset,
-	const char *ckpt_resource_path,
-	const char *resource_path
-);
+int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K, off_t offset, const char *ckpt_resource_path, const char *resource_path);
 
 static int filerail_socket(int domain, int type, int protocol) {
 	int fd;
@@ -100,6 +94,18 @@ static int filerail_is_fd_valid(int fd) {
 	return fcntl(fd, F_GETFD) != -1 || errno == EBADFD;
 }
 
+static int filerail_set_timeout(int fd, int level, int option, int s, int u) {
+	struct timeval tv;
+
+	tv.tv_sec = s;
+	tv.tv_usec = u;
+
+	if (filerail_setsockopt(fd, level, option, (const void*)&tv, sizeof(tv)) == -1) {
+		return -1;
+	}
+	return 0;
+}
+
 int filerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 	int clifd;
 
@@ -128,7 +134,7 @@ int filerail_create_tcp_server(char *ip, char *port) {
 	const int optval = 1;
 	socklen_t addrlen;
 	struct sockaddr_in addr;
-	struct timeval tv;
+
 
 	addrlen = (socklen_t)sizeof(struct sockaddr_in);
 	memset(&addr, 0, addrlen);
@@ -137,16 +143,13 @@ int filerail_create_tcp_server(char *ip, char *port) {
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(atoi(port));
 
-	tv.tv_sec = TIME_OUT;
-	tv.tv_usec = 0;
-
 	if (
 		(fd = filerail_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1 ||
 		filerail_bind(fd, (const struct sockaddr*)&addr, addrlen) == -1 ||
 		filerail_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval, sizeof(const int)) == -1 ||
 		filerail_setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const void*)&optval, sizeof(const int)) == -1 ||
-		filerail_setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const void*)&tv, sizeof(tv)) == -1 ||
-		filerail_setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const void*)&tv, sizeof(tv)) == -1 ||
+		filerail_set_timeout(fd, SOL_SOCKET, SO_RCVTIMEO, TIME_OUT, 0) ||
+		filerail_set_timeout(fd, SOL_SOCKET, SO_SNDTIMEO, TIME_OUT, 0) ||
 		filerail_listen(fd, BACKLOG) == -1
 	) {
 		goto clean_up;
@@ -193,7 +196,7 @@ int filerail_send(int fd, void *buffer, size_t len, int flags) {
 	cur = 0;
 	while (len != 0) {
 		nbytes = send(fd, buffer + cur, len, flags);
-		if (nbytes == -1) {
+		if (nbytes <= 0) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_send send");
 			return -1;
 		}
@@ -209,7 +212,7 @@ int filerail_recv(int fd, void *buffer, size_t len, int flags) {
 	cur = 0;
 	while (len != 0) {
 		nbytes = recv(fd, buffer + cur, len, flags);
-		if (nbytes == -1) {
+		if (nbytes <= 0) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv recv");
 			return -1;
 		}
@@ -274,6 +277,10 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
 		goto clean_up;
 	}
 
+	if (filerail_set_timeout(fd, SOL_SOCKET, SO_RCVTIMEO, MAX_IO_TIME_OUT, 0) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
   while (size != 0) {
   	nbytes = fread((void *)data.data_payload, 1, min(BUFFER_SIZE, size), fp);
   	if (nbytes != min(BUFFER_SIZE, size) && ferror(fp)) {
@@ -304,6 +311,9 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
 	PRINT(printf("\n"));
 	if (fp != NULL) {
 		fclose(fp);
+	}
+	if (filerail_set_timeout(fd, SOL_SOCKET, SO_RCVTIMEO, TIME_OUT, 0) == -1) {
+		exit_status = -1;
 	}
 	return exit_status;
 }
@@ -350,8 +360,13 @@ int filerail_recvfile(
 	size -= offset;
 
 	ckpt.offset = offset;
+	if (filerail_set_timeout(fd, SOL_SOCKET, SO_RCVTIMEO, MAX_IO_TIME_OUT, 0) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
 	while (size != 0) {
 		if (filerail_recv(fd, (void *)&data, sizeof(data), MSG_WAITALL) == -1) {
+			exit_status = -1;
 			goto clean_up;
 		}
 		nbytes = data.data_size;
@@ -397,6 +412,9 @@ int filerail_recvfile(
 	}
 	if (fckpt != NULL) {
 		fclose(fckpt);
+	}
+	if (filerail_set_timeout(fd, SOL_SOCKET, SO_RCVTIMEO, TIME_OUT, 0) == -1) {
+		exit_status = -1;
 	}
 	return exit_status;
 }
