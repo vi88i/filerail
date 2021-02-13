@@ -32,7 +32,7 @@ $ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
 ```
 
 ```bash
-$ ./filerail_server -v -i 127.0.0.1 -p 8000 -k /home/key
+$ ./filerail_server -v -i 127.0.0.1 -p 8000 -k /home/key -c /home/server_ckpts
 ```
 
 ```text
@@ -94,7 +94,7 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 
 ## Setup keys
 
-- filerail uses AES (CTR mode).
+- filerail uses AES-128 (CTR mode).
 - It requires two keys stored in two separate files (in single directory), and both keys are of 128-bit length.
 - Pair of hex digits are separated by space, and last hex digit is delimited by newline (\n).
 
@@ -113,12 +113,6 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ```
-
----
-
-## Upcoming features
-
-- Save checkpoints while download/upload
 
 ---
 
