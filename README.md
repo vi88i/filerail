@@ -11,6 +11,11 @@
 - Compresses your data before sending.
 - Encryption using AES-128 in CTR mode of operation.
 - Uses MD5 hash to verify integrity at receiver side.
+- Uses <a href="https://msgpack.org/index.html">MessagePack</a> for portablility across various Linux systems.
+
+# Upcoming feature
+
+- Use msgpack for serializing/deserializing all data sent across wire.
 
 # How filerail works ?
 
@@ -124,10 +129,14 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ---
 
-## Dependencies
+## Dependencies included
 
-- <a href="https://github.com/kuba--/zip">kuba--/zip</a> (included in deps) 
-- <a href="https://github.com/openssl/openssl">openssl</a> version: 3.0.0-alpha12-dev (not included in deps, you got to install it)
+1. <a href="https://github.com/kuba--/zip">kuba--/zip</a> (included in deps) 
+
+## Dependencies you need to install
+
+1. <a href="https://github.com/openssl/openssl">openssl</a> Release: 3.0.0-alpha12-dev
+2. <a href="https://github.com/msgpack/msgpack-c">msgpack-c</a> Release: 3.3.0 
 
 ---
 
