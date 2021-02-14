@@ -4,6 +4,9 @@
 #include <sys/types.h>
 #include "constants.h"
 
+#define NUM_ATTRS_FOR_RESOURCE_HEADER 3
+#define NUM_ATTRS_FOR_DATA_PACKET 3
+
 // filerail commands
 enum COMMAND {
 	GET, // get resource from server
@@ -32,31 +35,31 @@ enum RESPONSE {
 
 // command structure
 typedef struct _filerail_command_header {
-	int command_type; // self-explanatory
+	uint8_t command_type; // self-explanatory
 } filerail_command_header;
 
 // response structure
 typedef struct _filerail_response_header {
-	int response_type; // self-explanatory
+	uint8_t response_type; // self-explanatory
 } filerail_response_header;
 
 // metadata about resource to be sent
 typedef struct _filerail_resource_header {
-	off_t resource_size; // stores resource size
+	uint64_t resource_size; // stores resource size
 	char resource_name[MAX_RESOURCE_LENGTH]; // self-explanatory
 	char resource_dir[MAX_PATH_LENGTH]; // self-explanatory
 } filerail_resource_header;
 
 // packet which transports encrypted data
 typedef struct _filerail_data_packet {
-	unsigned char data_payload[BUFFER_SIZE]; // data
-	size_t data_size; // size of actual data
-	size_t data_padding; // padding added by AES encryption
+	uint8_t data_payload[BUFFER_SIZE]; // data
+	uint64_t data_size; // size of actual data
+	uint64_t data_padding; // padding added by AES encryption
 } filerail_data_packet;
 
 // serializes checkpoint
 typedef struct _filerail_checkpoint {
-	off_t offset; // stores offset
+	uint64_t offset; // stores offset
 	char resource_path[MAX_PATH_LENGTH]; // self-explanatory
 } filerail_checkpoint;
 

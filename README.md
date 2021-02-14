@@ -11,11 +11,7 @@
 - Compresses your data before sending.
 - Encryption using AES-128 in CTR mode of operation.
 - Uses MD5 hash to verify integrity at receiver side.
-- Uses <a href="https://msgpack.org/index.html">MessagePack</a> for portablility across various Linux systems.
-
-# Upcoming feature
-
-- Use msgpack for serializing/deserializing all data sent across wire.
+- Uses <a href="https://msgpack.org/index.html">MessagePack</a> for data interchange, to increase portablility among linux different systems.
 
 # How filerail works ?
 
@@ -28,7 +24,7 @@ An application layer protocol built on top of TCP. After connection establishmen
 - Spin filerail server.
 
 ```bash
-$ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
+$ gcc -o filerail_server filerail_server.c <full path to libmsgpackc.a> -lssl -lcrypto -Wall
 ```
 
 ```bash
@@ -62,7 +58,7 @@ $ sudo netstat -pln | grep 8000
 - Compile client side code.
 
 ```bash
-$ gcc -o filerail_server filerail_server.c -lssl -lcrypto -Wall
+$ gcc -o filerail_server filerail_server.c <full path to libmsgpackc.a> -lssl -lcrypto -Wall
 ```
 
 ```bash
