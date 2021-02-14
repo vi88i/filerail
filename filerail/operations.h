@@ -33,6 +33,7 @@ int filerail_recvfile_handler(
 	const char *key_path,
 	const char* ckpt_path);
 
+// handles sending of files
 int filerail_sendfile_handler(
 	int fd,
 	const char *resource_dir,
@@ -59,11 +60,13 @@ int filerail_sendfile_handler(
 	strcpy(zip_filename, resource_name);
 	strcat(zip_filename, ".zip");
 
+	// store the current directory
 	if (filerail_getcwd(current_dir) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
 
+	// read the key file
 	PRINT(printf("Generating keys...\n"));
 	if (filerail_cd(key_path) == -1) {
 		exit_status = -1;
@@ -85,11 +88,13 @@ int filerail_sendfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	// change the directory to resource directory (because the zip lib requires the resource to be in current dir)
 	if (filerail_cd(resource_dir) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
 
+	// zip the resource
 	PRINT(printf("Zipping resource...\n"));
 	if (S_ISDIR(stat_resource->st_mode)) {
 		if (
@@ -114,6 +119,7 @@ int filerail_sendfile_handler(
 	zip = NULL;
 	PRINT(printf("Finished...\n"));
 
+	// find the md5 hash of zipped file
 	PRINT(printf("Generating md5 hash for zip file...\n"));
 	if (filerail_md5(hash, zip_filename) == -1) {
 		exit_status = -1;
@@ -121,6 +127,7 @@ int filerail_sendfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	// advertise md5 hash to receiver (so that it can start checkpointing, and search for preivous checkpoints)
 	PRINT(printf("Sending md5 hash...\n"));
 	if (filerail_send(fd, (void *)hash, MD5_DIGEST_LENGTH, 0) == -1) {
 		exit_status = -1;
@@ -128,11 +135,14 @@ int filerail_sendfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	// receive response from receiver (whether it wants to resume from previous checkpoint or restart entire process)
 	if (filerail_recv(fd, (void *)&command, sizeof(command), MSG_WAITALL) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
+	// RESUME: receiver finds previous checkpoint, so it inquires if sender wants to resume
 	if (command.command_type == RESUME) {
+		// by deafult server agrees to resume
 		if (!is_server) {
 			printf("Do you wish to restart from previous checkpoint[Y/N] : ");
 			scanf("%c", &option);
@@ -145,22 +155,26 @@ int filerail_sendfile_handler(
 				exit_status = -1;
 				goto clean_up;
 			}
+			// if sender agrees to resume, wait for receiver to send offset of zip file
 			if (filerail_recv(fd, (void *)&offset, sizeof(offset), MSG_WAITALL) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
 		} else {
+			// if sender disagrees, abort the checkpoint resumption and restart transferring the whole file
 			if (filerail_send_response_header(fd, ABORT) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
 		}
 	} else if (command.command_type == RESTART) {
+		// receiver didn't find any checkpoint
 		// do nothing, simply restart the whole process of sending file
 	} else {
 		PRINT(printf("PROTOCOL NOT FOLLOWED\n"););
 	}
 
+	// send the file
 	PRINT(printf("Ready to send resource...\n"));
   start = clock();
   if (filerail_sendfile(fd, zip_filename, &K, offset) == -1) {
@@ -171,6 +185,7 @@ int filerail_sendfile_handler(
   cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
   PRINT(printf("File transfer complete in %f seconds...\n", cpu_time_used));
 
+  // wait for receiver to compute the hash, and verify integrity
   PRINT(printf("Verifying hash...\n"));
   if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
   	exit_status = -1;
@@ -188,11 +203,13 @@ int filerail_sendfile_handler(
   }
   PRINT(printf("Finished...\n"));
 
+  // remove the zip file
 	if (filerail_rm(zip_filename) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
 
+	// go back to previosu directory
 	if (filerail_cd(current_dir) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -202,6 +219,7 @@ int filerail_sendfile_handler(
 	return exit_status;
 }
 
+// handles receving of files
 int filerail_recvfile_handler(
 	int fd,
 	const char *resource_name,
@@ -228,11 +246,13 @@ int filerail_recvfile_handler(
 	offset = 0;
   exit_status = 0;
 
+  // store current directory
   if (filerail_getcwd(current_dir) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
 
+  // read the keys
 	PRINT(printf("Generating keys...\n"));
 	if (filerail_cd(key_path) == -1) {
 		exit_status = -1;
@@ -254,6 +274,7 @@ int filerail_recvfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	// wait for sender to advertise md5 hash
 	PRINT(printf("Waiting for md5 hash...\n"););
 	if (filerail_recv(fd, (void *)recvd_hash, MD5_DIGEST_LENGTH, 0) == -1) {
   	exit_status = -1;
@@ -261,6 +282,7 @@ int filerail_recvfile_handler(
   }
   PRINT(printf("Finished...\n"));
 
+  // search for checkpoints
   PRINT(printf("Searching for checkpoints...\n"));
 	ckpt_resource_path[0] = '\0';
 	strcpy(ckpt_resource_path, ckpt_path);
@@ -270,6 +292,7 @@ int filerail_recvfile_handler(
 
 	if (filerail_is_exists(ckpt_resource_path, &stat_path)) {
 		if (filerail_is_readable(ckpt_resource_path)) {
+			// if checkpoint exists and it is readable, read the checkpoint
 			if ((fp = fopen(ckpt_resource_path, "rb")) == NULL) {
 				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fopen");
 				exit_status = -1;
@@ -280,10 +303,12 @@ int filerail_recvfile_handler(
 				exit_status = -1;
 				goto restart;
 			}
+			// check if resource path stored in checkpoint and new resource path sent by sender matches
 			if (strcmp(ckpt.resource_path, resource_path) != 0) {
 				PRINT(printf("Resource path in checkpoint doesn't match resource path of request...\n"));
 				goto restart;
 			}
+			// check offset stored in checkpoint matches, the size of incompelete zip file (to make sure someone didnt modify)
 			if (stat(resource_path, &stat_path) == -1) {
 				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler stat");
 				exit_status = -1;
@@ -293,15 +318,19 @@ int filerail_recvfile_handler(
 				PRINT(printf("Offset of checkpoint doesn't match resource size...\n"));
 				goto restart;
 			}
+			// ask if sender want to resume
 			if (filerail_send_command_header(fd, RESUME) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
+			// wait for response
 			if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
+			// if OK, resume from previous checkpoint
 			if (response.response_type == OK) {
+				// send offset to sender
 				offset = ckpt.offset;
 				if (filerail_send(fd, (void *)&offset, sizeof(offset), 0) == -1) {
 					exit_status = -1;
@@ -320,6 +349,7 @@ int filerail_recvfile_handler(
 			goto clean_up;
 		}
 	} else {
+		// restart the transfer process
 		restart:
 		PRINT(printf("No checkpoints found...\n"));
 		if (filerail_send_command_header(fd, RESTART) == -1) {
@@ -328,6 +358,7 @@ int filerail_recvfile_handler(
 		}
 	}
 
+	// recv the file
   PRINT(printf("Waiting for server to respond...\n"));
   start = clock();
   if (filerail_recvfile(fd, resource_path, &K, offset, ckpt_resource_path, resource_path) == -1) {
@@ -338,6 +369,7 @@ int filerail_recvfile_handler(
   cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
   PRINT(printf("File transfer complete in %f seconds...\n", cpu_time_used));
 
+  // go back to resource directory
   if (filerail_cd(resource_dir) == -1) {
   	exit_status = -1;
   	goto clean_up;
@@ -347,6 +379,7 @@ int filerail_recvfile_handler(
   strcpy(zip_filename, resource_name);
   strcat(zip_filename, ".zip");
 
+  // generate the md5 hash
   PRINT(printf("Generating hash...\n"));
 	if (filerail_md5(computed_hash, zip_filename) == -1) {
 		exit_status = -1;
@@ -354,6 +387,7 @@ int filerail_recvfile_handler(
 	}
 	PRINT(printf("Finished...\n"));
 
+	// compute the hash of received zip file and verify it with advertised md5 hash
   PRINT(printf("Verifying hash...\n"));
   if (memcmp(computed_hash, recvd_hash, MD5_DIGEST_LENGTH) == 0) {
   	if (filerail_send_response_header(fd, OK) == -1) {
@@ -370,6 +404,7 @@ int filerail_recvfile_handler(
   }
   PRINT(printf("Finished...\n"));
 
+  // if hash matches unzip the resource
   PRINT(printf("Unzipping...\n"));
   if (zip_extract(zip_filename, resource_dir, zip_on_extract_entry, NULL) == -1) {
   	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler");
@@ -378,17 +413,21 @@ int filerail_recvfile_handler(
   }
   PRINT(printf("Finished...\n"));
 
+  // oops
   hash_failed:
+  // go back to previous directory
   if (filerail_cd(current_dir) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
 
+  // remove the zip file
   if (filerail_rm(resource_path) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
 
+  // remove the checkpoints
   if (filerail_rm(ckpt_resource_path) == -1) {
   	exit_status = -1;
   	goto clean_up;

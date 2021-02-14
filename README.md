@@ -1,4 +1,3 @@
-
 <p align="center"><img src="https://github.com/vi88i/filerail/blob/main/assets/filerail.png" alt="filerail"></p>
 
 <p align="center"><b>Host a simple and cheap peer-to-peer file transfer program on your Linux server</b>.</p>

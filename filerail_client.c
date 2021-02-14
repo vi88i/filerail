@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
 	should_resolve = false;
 	exit_status = 0;
 
+	// parse command line arguement
 	ip = port = operation = res_path = des_path = key_path = ckpt_path = NULL;
 	while ((opt = getopt(argc, argv, "uvi:p:o:r:d:k:c:n")) != -1) {
 		switch(opt) {
@@ -94,6 +95,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	// check important fields
 	if (
 		ip == NULL || port == NULL || operation == NULL ||
 		(strcmp("ping", operation) != 0 && key_path == NULL) ||
@@ -104,11 +106,13 @@ int main(int argc, char *argv[]) {
 		goto clean_up;
 	}
 
+	// check if key file exists
 	if (!filerail_is_exists(key_path, &stat_path)) {
 		printf("Couldn't open key directory\n");
 		goto clean_up;
 	}
 
+	// create checkpoint dir, if it doesn't exist
 	if (!filerail_is_exists(ckpt_path, &stat_path)) {
 		if (filerail_mkdir(ckpt_path) == -1) {
 			printf("Failed to create checkpoints directory at %s\n", ckpt_path);
@@ -117,10 +121,12 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	// resolve the ip field, if dns resolution option provided
 	if (should_resolve && (filerail_dns_resolve(ip) == -1)) {
 		goto clean_up;
 	}
 
+	// connect to tcp server
 	if ((fd = filerail_connect_to_tcp_server(ip, port)) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -136,22 +142,30 @@ int main(int argc, char *argv[]) {
 		}
 		printf("PONG\n");
 	} else if (strcmp(operation, "put") == 0) {
+		// res path and des path is necessary
 		if (res_path == NULL || des_path == NULL) {
 			printf("-r and -d are required options for \"%s\"\n", operation);
 			goto clean_up;
 		}
+		// check if resource exists
 		if (filerail_is_exists(res_path, &stat_path)) {
+			// check if resource is readable
 			if (filerail_is_readable(res_path)) {
+				// check if resource is file or directory
 				if (filerail_is_file(&stat_path) || filerail_is_dir(&stat_path)) {
+					// send the command
 					if (filerail_send_command_header(fd, PUT) == -1) {
 						exit_status = -1;
 						goto clean_up;
 					}
+					// parse resource path
 					if (filerail_parse_resource_path(res_path, resource_name, resource_dir)) {
+						// send resource name, destination dir (on server) and resource size (unzipped)
 						if (filerail_send_resource_header(fd, resource_name, des_path, stat_path.st_size) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
+						// server performs checks, and sends response
 						if (filerail_recv(fd, (void*)&response, sizeof(response), MSG_WAITALL) == -1) {
 							exit_status = -1;
 							goto clean_up;
@@ -160,6 +174,8 @@ int main(int argc, char *argv[]) {
 							printf("You don't have write permission for %s on server\n", des_path);
 							goto clean_up;
 						} else if (response.response_type == DUPLICATE_RESOURCE_NAME) {
+							// if the resource with same name exists
+							// check if user wants to overwrite
 							printf("%s already exists at %s, do you wish to re-write[Y/N]: ", resource_name, des_path);
 							scanf("%c", &option);
 							getchar();
@@ -168,12 +184,14 @@ int main(int argc, char *argv[]) {
 									exit_status = -1;
 									goto clean_up;
 								}
+								// if overwrite is ok, start the sending process
 								put_file:
 								printf("Starting transfer process...\n");
 								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path, key_path, ckpt_path) == -1) {
 									exit_status = -1;
 								}
 							} else {
+								// if sender doesn't want to overwrite, ABORT the process
 								if (filerail_send_response_header(fd, ABORT) == -1) {
 									exit_status = -1;
 								}
@@ -199,43 +217,56 @@ int main(int argc, char *argv[]) {
 			printf("%s doesn't exists\n", res_path);
 		}
 	} else if(strcmp(operation, "get") == 0) {
+		// res path and des path is necessary
 		if (res_path == NULL || des_path == NULL) {
 			printf("-r and -d are required options for \"%s\"\n", operation);
 			goto clean_up;
 		}
+		// parse resource path
 		if (filerail_parse_resource_path(res_path, resource_name, resource_dir)) {
 			resource_path[0] = '\0';
 			strcpy(resource_path, des_path);
 			strcat(resource_path, "/");
 			strcat(resource_path, resource_name);
+			// check if resource name already exists in destination path on client side
 			if (filerail_is_exists(resource_path, &stat_path)) {
+				// ask if the user want to overwrite
 				printf("%s already exists at %s, do you wish to re-write[Y/N]: ", resource_name, resource_dir);
 				scanf("%c", &option);
 				getchar();
+				// if user wants to overwrite
 				if (option == 'Y' || option == 'y') {
+					// check if resource is writeable
 					if (filerail_is_writeable(resource_path)) {
+						// start the get process
 						get_file:
 						if (filerail_send_command_header(fd, GET) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
+						// request the sender for resource
 						if (filerail_send_resource_header(fd, resource_name, resource_dir, 0) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
+						// check if sender is ready to transfer
 						if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
 						if (response.response_type == OK) {
+							// if sender is OK, get the resource size from sender
 							if (filerail_recv(fd, (void *)&resource, sizeof(resource), MSG_WAITALL) == -1) {
 								exit_status = -1;
 								goto clean_up;
 							}
+							// check the storage size
 							if (filerail_check_storage_size(resource.resource_size)) {
+								// if feasible send OK
 								if (filerail_send_response_header(fd, OK) == -1) {
 									exit_status = -1;
 								}
+								// and start the file transfer process
 								strcat(resource_path, ".zip");
 								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, key_path, ckpt_path) == -1) {
 									exit_status = -1;
@@ -260,12 +291,14 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			} else {
-				// check if directory is valid
+				// check if resource path is not valid, check if at least resource dir (destination dir) exists
 				if (stat(des_path, &stat_path) == -1) {
 					printf("%s is invalid directory\n", des_path);
 					exit_status = -1;
 				} else {
-					if (access(des_path, W_OK) == 0) {
+					// if it exists check, if des path is writeable
+					if (filerail_is_writeable(des_path)) {
+						// start the file transfer process
 						goto get_file;
 					}	else {
 						printf("You don't have write permission for %s\n", des_path);

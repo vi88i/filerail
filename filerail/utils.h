@@ -38,6 +38,7 @@ int filerail_mkdir(const char *dir_path);
 void filerail_hash_to_string(const unsigned char *hash, char *hex_str);
 char filerail_to_hex(unsigned char c);
 
+// check if there is enough storage size (resource size is sent by client)
 bool filerail_check_storage_size(off_t resource_size) {
 	struct statvfs buf;
 
@@ -48,14 +49,17 @@ bool filerail_check_storage_size(off_t resource_size) {
 	return (resource_size / buf.f_frsize) < buf.f_bavail;
 }
 
+// checks if resource if file
 bool filerail_is_file(struct stat *stat_resource) {
   return S_ISREG(stat_resource->st_mode) || S_ISLNK(stat_resource->st_mode);
 }
 
+// checks if resource is dir
 bool filerail_is_dir(struct stat *stat_resource) {
   return S_ISDIR(stat_resource->st_mode);
 }
 
+// check if resource exists
 bool filerail_is_exists(const char *resource_path, struct stat *stat_resource) {
   if (lstat(resource_path, stat_resource) == -1) {
   	LOG(LOG_USER | LOG_ERR, "utils.h filerail_is_exists lstat");
@@ -64,14 +68,17 @@ bool filerail_is_exists(const char *resource_path, struct stat *stat_resource) {
   return true;
 }
 
+// check is resource is readable
 bool filerail_is_readable(const char *resource_path) {
   return access(resource_path, R_OK) == 0;
 }
 
+// check is resource is writeable
 bool filerail_is_writeable(const char *resource_path) {
   return access(resource_path, W_OK) == 0;
 }
 
+// recursively zip the folder
 bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 	bool exit_status;
 	DIR *dir;
@@ -124,6 +131,7 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 	return exit_status;
 }
 
+// zip single file
 bool filerail_zip_file(struct zip_t *zip, const char *resource_path) {
 	if (
 		zip_entry_open(zip, resource_path) == -1 ||
@@ -136,6 +144,7 @@ bool filerail_zip_file(struct zip_t *zip, const char *resource_path) {
 	return true;
 }
 
+// create a temporary zip file
 bool filerail_zip_create(const char *resource_path) {
   bool exit_status;
   char zip_filename[MAX_RESOURCE_LENGTH];
@@ -156,6 +165,7 @@ bool filerail_zip_create(const char *resource_path) {
   return exit_status;
 }
 
+// call back for zip extract (check deps)
 int zip_on_extract_entry(const char *resource_name, void *arg) {
 	struct stat stat_resource;
 
@@ -174,6 +184,7 @@ bool zip_extract_resource(const char *source_path, const char *destination_path)
 	return true;
 }
 
+// remove the file/dir
 int filerail_rm(const char *resource_path) {
   int exit_status;
   DIR *dir;
@@ -245,6 +256,7 @@ int filerail_rm(const char *resource_path) {
   return exit_status;
 }
 
+// parse the resource path (gets resource dir and resource name)
 bool filerail_parse_resource_path(const char *resource_path, char *resource_name, char *resource_dir) {
 	int i;
 	size_t path_len = strlen(resource_path);
@@ -399,6 +411,7 @@ char filerail_to_char(unsigned char c) {
 	return '0';
 }
 
+// convert md5 (16 bytes) hash to string (16 letter)
 void filerail_hash_to_string(const unsigned char *hash, char *hex_str) {
 	int i;
 
