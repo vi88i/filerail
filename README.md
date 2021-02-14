@@ -134,4 +134,4 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ## Requirements
 
-- Linux machine on server and client side with gcc compiler installed. (Sorry Windows and macOS fans)
+- Currently filerail is not protable. You need a Ubuntu 18.04.4 LTS x86_64 client and server. Along with gcc compiler and openssl.
