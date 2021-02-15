@@ -96,13 +96,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	// check important fields
-	if (
-		ip == NULL || port == NULL || operation == NULL ||
-		(strcmp("ping", operation) != 0 && key_path == NULL) ||
-		(strcmp("ping", operation) != 0 && ckpt_path == NULL)
-		)
-	{
-		printf("-i, -p, -a, -k and -c are required options\n");
+	if (ip == NULL || port == NULL || operation == NULL || key_path == NULL || ckpt_path == NULL) {
+		printf("-i, -p, -o, -k and -c are required options\n");
 		goto clean_up;
 	}
 
@@ -135,8 +130,9 @@ int main(int argc, char *argv[]) {
 	if (strcmp(operation, "ping") == 0) {
 		if (filerail_send_response_header(fd, PING) == -1) {
 			exit_status = -1;
+			goto clean_up;
 		}
-		if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
+		if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
 			exit_status = -1;
 			goto clean_up;
 		}
@@ -166,7 +162,7 @@ int main(int argc, char *argv[]) {
 							goto clean_up;
 						}
 						// server performs checks, and sends response
-						if (filerail_recv(fd, (void*)&response, sizeof(response), MSG_WAITALL) == -1) {
+						if (filerail_recv_protocol_data(fd, (void*)&response) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
@@ -250,13 +246,13 @@ int main(int argc, char *argv[]) {
 							goto clean_up;
 						}
 						// check if sender is ready to transfer
-						if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
+						if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
 						if (response.response_type == OK) {
 							// if sender is OK, get the resource size from sender
-							if (filerail_recv(fd, (void *)&resource, sizeof(resource), MSG_WAITALL) == -1) {
+							if (filerail_recv_protocol_data(fd, (void *)&resource) == -1) {
 								exit_status = -1;
 								goto clean_up;
 							}

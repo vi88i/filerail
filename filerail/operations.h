@@ -43,19 +43,19 @@ int filerail_sendfile_handler(
 	const char* ckpt_path)
 {
 	int exit_status;
-	off_t offset;
-	char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH], option;
 	struct zip_t *zip;
 	clock_t start, end;
 	double cpu_time_used;
-	unsigned char hash[MD5_DIGEST_LENGTH];
+	filerail_file_offset fo;
 	filerail_command_header command;
+	filerail_response_header response;
 	aesCryptoInfo ci;
 	AES_keys K;
-	filerail_response_header response;
+	char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH], option;
+	uint8_t hash[MD5_HASH_LENGTH];
 
 	exit_status = 0;
-	offset = 0;
+	fo.offset = 0;
 	zip_filename[0] = '\0';
 	strcpy(zip_filename, resource_name);
 	strcat(zip_filename, ".zip");
@@ -129,14 +129,17 @@ int filerail_sendfile_handler(
 
 	// advertise md5 hash to receiver (so that it can start checkpointing, and search for preivous checkpoints)
 	PRINT(printf("Sending md5 hash...\n"));
-	if (filerail_send(fd, (void *)hash, MD5_DIGEST_LENGTH, 0) == -1) {
+	if (filerail_send_resource_hash(fd, hash) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
 	PRINT(printf("Finished...\n"));
 
-	// receive response from receiver (whether it wants to resume from previous checkpoint or restart entire process)
-	if (filerail_recv(fd, (void *)&command, sizeof(command), MSG_WAITALL) == -1) {
+	/*
+		receive response from receiver (whether it wants to resume from previous checkpoint
+		or restart entire process)
+	*/
+	if (filerail_recv_protocol_data(fd, (void *)&command) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -156,7 +159,7 @@ int filerail_sendfile_handler(
 				goto clean_up;
 			}
 			// if sender agrees to resume, wait for receiver to send offset of zip file
-			if (filerail_recv(fd, (void *)&offset, sizeof(offset), MSG_WAITALL) == -1) {
+			if (filerail_recv_protocol_data(fd, (void *)&fo) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
@@ -177,7 +180,7 @@ int filerail_sendfile_handler(
 	// send the file
 	PRINT(printf("Ready to send resource...\n"));
   start = clock();
-  if (filerail_sendfile(fd, zip_filename, &K, offset) == -1) {
+  if (filerail_sendfile(fd, zip_filename, &K, fo.offset) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -187,7 +190,7 @@ int filerail_sendfile_handler(
 
   // wait for receiver to compute the hash, and verify integrity
   PRINT(printf("Verifying hash...\n"));
-  if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
+  if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -229,15 +232,16 @@ int filerail_recvfile_handler(
 	const char* ckpt_path)
 {
   int exit_status;
-  off_t offset;
+  uint64_t offset;
   char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH];
 	clock_t start, end;
 	double cpu_time_used;
-	unsigned char computed_hash[MD5_DIGEST_LENGTH], recvd_hash[MD5_DIGEST_LENGTH];
-	char ckpt_resource_path[MAX_PATH_LENGTH], hex_str[2 * MD5_DIGEST_LENGTH];
+	uint8_t computed_hash[MD5_HASH_LENGTH];
+	char ckpt_resource_path[MAX_PATH_LENGTH], hex_str[2 * MD5_HASH_LENGTH];
 	struct stat stat_path;
 	filerail_checkpoint ckpt;
 	filerail_response_header response;
+	filerail_resource_hash rh;
 	FILE *fp;
 	aesCryptoInfo ci;
 	AES_keys K;
@@ -276,7 +280,7 @@ int filerail_recvfile_handler(
 
 	// wait for sender to advertise md5 hash
 	PRINT(printf("Waiting for md5 hash...\n"););
-	if (filerail_recv(fd, (void *)recvd_hash, MD5_DIGEST_LENGTH, 0) == -1) {
+	if (filerail_recv_protocol_data(fd, (void *)&rh) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -286,7 +290,7 @@ int filerail_recvfile_handler(
   PRINT(printf("Searching for checkpoints...\n"));
 	ckpt_resource_path[0] = '\0';
 	strcpy(ckpt_resource_path, ckpt_path);
-	filerail_hash_to_string(recvd_hash, hex_str);
+	filerail_hash_to_string(rh.hash, hex_str);
 	strcat(ckpt_resource_path, "/");
 	strcat(ckpt_resource_path, hex_str);
 
@@ -324,7 +328,7 @@ int filerail_recvfile_handler(
 				goto clean_up;
 			}
 			// wait for response
-			if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
+			if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
@@ -332,7 +336,7 @@ int filerail_recvfile_handler(
 			if (response.response_type == OK) {
 				// send offset to sender
 				offset = ckpt.offset;
-				if (filerail_send(fd, (void *)&offset, sizeof(offset), 0) == -1) {
+				if (filerail_send_file_offset(fd, offset) == -1) {
 					exit_status = -1;
 					goto clean_up;
 				}
@@ -389,7 +393,7 @@ int filerail_recvfile_handler(
 
 	// compute the hash of received zip file and verify it with advertised md5 hash
   PRINT(printf("Verifying hash...\n"));
-  if (memcmp(computed_hash, recvd_hash, MD5_DIGEST_LENGTH) == 0) {
+  if (memcmp(computed_hash, rh.hash, MD5_HASH_LENGTH) == 0) {
   	if (filerail_send_response_header(fd, OK) == -1) {
   		exit_status = -1;
   		goto clean_up;

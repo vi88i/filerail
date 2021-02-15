@@ -2,8 +2,10 @@
 #define _PROTOCOL_H
 
 #include <sys/types.h>
+#include <stdint.h>
 #include "constants.h"
 
+#define MD5_HASH_LENGTH 16
 #define NUM_ATTRS_FOR_RESOURCE_HEADER 3
 #define NUM_ATTRS_FOR_DATA_PACKET 3
 
@@ -62,5 +64,15 @@ typedef struct _filerail_checkpoint {
 	uint64_t offset; // stores offset
 	char resource_path[MAX_PATH_LENGTH]; // self-explanatory
 } filerail_checkpoint;
+
+// share offset
+typedef struct _filerail_file_offset {
+	uint64_t offset;
+} filerail_file_offset;
+
+// share hash
+typedef struct _filerail_resource_hash {
+	uint8_t hash[MD5_HASH_LENGTH];
+} filerail_resource_hash;
 
 #endif

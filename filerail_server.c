@@ -117,6 +117,8 @@ int main(int argc, char *argv[]) {
 		goto parent_clean_up;
 	}
 
+	printf("Send SIGINT on this terminal, if the terminal is not released by process...\n");
+
 	// daemonize
 	pid = fork();
 	if (pid < 0) {
@@ -173,14 +175,14 @@ int main(int argc, char *argv[]) {
 			close(fd);
 
 			// receive the command sent by client
-			if (filerail_recv(clifd, (void *)&command, sizeof(command), MSG_WAITALL) == -1) {
+			if (filerail_recv_protocol_data(clifd, (void *)&command) == -1) {
 				exit_status = -1;
 				goto child_clean_up;
 			}
 
 			if (command.command_type == PUT) {
 				// receive information about resource which is about to be sent by client
-				if (filerail_recv(clifd, (void *)&resource, sizeof(resource), MSG_WAITALL) == -1) {
+				if (filerail_recv_protocol_data(clifd, (void *)&resource) == -1) {
 					exit_status = -1;
 					goto child_clean_up;
 				}
@@ -200,7 +202,7 @@ int main(int argc, char *argv[]) {
 								goto child_clean_up;
 							}
 							// receive command
-							if (filerail_recv(clifd, (void*)&command, sizeof(command), MSG_WAITALL) == -1) {
+							if (filerail_recv_protocol_data(clifd, (void*)&command) == -1) {
 								exit_status = -1;
 								goto child_clean_up;
 							}
@@ -268,7 +270,7 @@ int main(int argc, char *argv[]) {
 				}
 			} else if(command.command_type == GET) {
 				// receive the resource request from client
-				if (filerail_recv(clifd, (void *)&resource, sizeof(resource), MSG_WAITALL) == -1) {
+				if (filerail_recv_protocol_data(clifd, (void *)&resource) == -1) {
 					exit_status = -1;
 					goto child_clean_up;
 				}
@@ -292,7 +294,7 @@ int main(int argc, char *argv[]) {
 								goto child_clean_up;
 							}
 							// wait for response from client
-							if (filerail_recv(clifd, (void*)&response, sizeof(response), MSG_WAITALL) == -1) {
+							if (filerail_recv_protocol_data(clifd, (void*)&response) == -1) {
 								exit_status = -1;
 								goto child_clean_up;
 							}

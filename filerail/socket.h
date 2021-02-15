@@ -34,11 +34,15 @@ int filerail_close(int fd);
 int filerail_create_tcp_server(char *ip, char *port);
 int filerail_connect_to_tcp_server(char *ip, char *port);
 int filerail_who(int fd, const char *action);
-int filerail_send_command_header(int fd, int type);
-int filerail_send_response_header(int fd, int type);
-int filerail_send_resource_header(int fd, char *name, char *dir, off_t size);
-int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offset);
-int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K, off_t offset, const char *ckpt_resource_path, const char *resource_path);
+int filerail_send_command_header(int fd, uint8_t type);
+int filerail_send_response_header(int fd, uint8_t type);
+int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resource_size);
+int filerail_send_file_offset(int fd, uint64_t offset);
+int filerail_send_resource_hash(int fd, uint8_t *hash);
+int filerail_send_data_packet(int fd, filerail_data_packet *data);
+int filerail_recv_protocol_data(int fd, void *protocol_format);
+int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset);
+int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset, const char *ckpt_resource_path, const char *resource_path);
 
 static int filerail_socket(int domain, int type, int protocol) {
 	int fd;
@@ -242,14 +246,13 @@ int filerail_who(int fd, const char *action) {
 	return 0;
 }
 
-int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offset) {
+int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset) {
 	int exit_status;
-	off_t size, total;
+	uint64_t size, total;
 	size_t nbytes;
 	FILE *fp;
 	struct stat stat_path;
 	filerail_data_packet data;
-	filerail_response_header response;
 
 	fp = NULL;
 	exit_status = 0;
@@ -310,22 +313,12 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, off_t offse
   	data.data_padding = AES_CTR(data.data_payload, nbytes, K);
   	data.data_size = nbytes;
   	// send the data packet
-  	if (filerail_send(fd, (void *)&data, sizeof(data), 0) == -1) {
+  	if (filerail_send_data_packet(fd, (void *)&data) == -1) {
   		exit_status = -1;
   		goto clean_up;
   	}
   	// subtract the bytes sent
   	size -= nbytes;
-  	// wait for OK
-  	if (filerail_recv(fd, (void *)&response, sizeof(response), MSG_WAITALL) == -1) {
-  		exit_status = -1;
-  		goto clean_up;
-  	}
-  	if (response.response_type != OK) {
-  		LOG(LOG_USER | LOG_INFO, "No ACK\n");
-  		exit_status = -1;
-  		goto clean_up;
-  	}
   	PRINT(filerail_progress_bar(size / (1.0 * total)));
   }
 
@@ -345,14 +338,14 @@ int filerail_recvfile(
 	int fd,
 	const char *zip_filename,
 	AES_keys *K,
-	off_t offset,
+	uint64_t offset,
 	const char *ckpt_resource_path,
 	const char *resource_path
 	)
 {
 	int exit_status;
 	ssize_t nbytes;
-	off_t size, total;
+	uint64_t size, total;
 	FILE *fp, *fckpt;
 	char tmp_ckpt_resource_path[MAX_PATH_LENGTH];
 	filerail_resource_header resource;
@@ -376,7 +369,7 @@ int filerail_recvfile(
 	}
 
 	// receive the size
-  if (filerail_recv(fd, (void *)&resource, sizeof(resource), MSG_WAITALL) == -1) {
+  if (filerail_recv_protocol_data(fd, (void *)&resource) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -394,7 +387,7 @@ int filerail_recvfile(
 	}
 	while (size != 0) {
 		// receive the data packet
-		if (filerail_recv(fd, (void *)&data, sizeof(data), MSG_WAITALL) == -1) {
+		if (filerail_recv_protocol_data(fd, (void *)&data) == -1) {
 			exit_status = -1;
 			goto clean_up;
 		}
@@ -440,10 +433,6 @@ int filerail_recvfile(
 			goto clean_up;
 		}
   	size -= nbytes;
-		if (filerail_send_response_header(fd, OK) == -1) {
-			exit_status = -1;
-			goto clean_up;
-		}
   	PRINT(filerail_progress_bar(size / (1.0 * total)););
 	}
 
@@ -462,33 +451,122 @@ int filerail_recvfile(
 }
 
 // send command header
-int filerail_send_command_header(int fd, int type) {
-	filerail_command_header command = { type };
+int filerail_send_command_header(int fd, uint8_t type) {
+	uint32_t size;
+	filerail_command_header command;
 
-	if (filerail_send(fd, (void*)&command, sizeof(command), 0) == -1) {
+	size = htonl(sizeof(command));
+	command.command_type = type;
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, (void *)&command, ntohl(size), 0)
+		)
+	{
 		return -1;
 	}
 	return 0;
 }
 
 // send response header
-int filerail_send_response_header(int fd, int type) {
-	filerail_response_header response = { type };
+int filerail_send_response_header(int fd, uint8_t type) {
+	uint32_t size;
+	filerail_response_header response;
 
-	if (filerail_send(fd, (void*)&response, sizeof(response), 0) == -1) {
+	size = htonl(sizeof(response));
+	response.response_type = type;
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, (void *)&response, ntohl(size), 0) == -1
+		)
+	{
 		return -1;
 	}
 	return 0;
 }
 
 // send resource header
-int filerail_send_resource_header(int fd, char *name, char *dir, off_t size) {
+int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resource_size) {
+	uint32_t size;
 	filerail_resource_header resource;
 
+	size = htonl(sizeof(resource));
+	memset(resource.resource_name, 0, MAX_RESOURCE_LENGTH);
+	memset(resource.resource_dir, 0, MAX_PATH_LENGTH);
 	strcpy(resource.resource_name, name);
 	strcpy(resource.resource_dir, dir);
-	resource.resource_size = size;
-	if (filerail_send(fd, (void*)&resource, sizeof(resource), 0) == -1) {
+	resource.resource_size = resource_size;
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, (void *)&resource, ntohl(size), 0) == -1
+		)
+	{
+		return -1;
+	}
+	return 0;
+}
+
+// send file offset
+int filerail_send_file_offset(int fd, uint64_t offset) {
+	uint32_t size;
+	filerail_file_offset fo;
+
+	size = htonl(sizeof(fo));
+	fo.offset = offset;
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, (void *)&fo, ntohl(size), 0) == -1
+		)
+	{
+		return -1;
+	}
+	return 0;
+}
+
+// send resource hash
+int filerail_send_resource_hash(int fd, uint8_t *hash) {
+	uint32_t size;
+	filerail_resource_hash rh;
+
+	size = htonl(sizeof(rh));
+	memcpy(rh.hash, hash, MD5_HASH_LENGTH);
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, (void *)&rh, ntohl(size), 0) == -1
+		)
+	{
+		return -1;
+	}
+	return 0;
+}
+
+int filerail_send_data_packet(int fd, filerail_data_packet *data) {
+	uint32_t size;
+
+	size = htonl(sizeof(*data));
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, (void *)data, ntohl(size), 0) == -1
+		)
+	{
+		return -1;
+	}
+	return 0;
+}
+
+int filerail_recv_protocol_data(int fd, void *protocol_format) {
+	uint32_t size;
+
+	if (
+		filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1 ||
+		filerail_recv(fd, protocol_format, ntohl(size), MSG_WAITALL)
+		)
+	{
 		return -1;
 	}
 	return 0;
