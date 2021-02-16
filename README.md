@@ -22,10 +22,10 @@ An application layer protocol built on top of TCP. After connection establishmen
 # Install
 
 ```bash
-git clone https://github.com/vi88i/filerail.git
-cd filerail
-chmod +x setup.sh
-./setup.sh
+$ git clone https://github.com/vi88i/filerail.git
+$ cd filerail
+$ chmod +x setup.sh
+$ ./setup.sh
 ```
 
 ---
@@ -63,7 +63,8 @@ options:
 
 ```bash
 $ sudo netstat -pln | grep 8000
-# if it doen't display anything something went wrong
+# if it doen't display anything something went wrong, refer syslog
+$ cat /var/log/syslog | grep filerail
 ```
 
 ## On client side

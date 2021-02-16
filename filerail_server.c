@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 			case 'u' : {
 				printf(
 					"usage: -v [-i ipv4 address]"
-					" [-p port] [-k key directory]"
+					" [-p port] [-k key file]"
 					" [-c checkpoint directory] [-n dns resolution]\n");
 				goto parent_clean_up;
 			}

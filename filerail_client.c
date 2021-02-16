@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
 				printf(
 					"usage: -v [-i ipv4 address] [-p port]"
 					" [-o operation] [-r resource path]"
-					" [-d destination path] [-k key directory]"
+					" [-d destination path] [-k key file]"
 					" [-c checkpoint directory] [-n dns resolution]\n"
 				);
 				goto clean_up;
