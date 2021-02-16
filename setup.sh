@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Grab a coffee, sit back and relax till dependencies are downloaded..."
+
 if [[ ! -d "deps" ]]
 then
     mkdir deps

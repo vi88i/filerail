@@ -8,29 +8,29 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
-#include <openssl/md5.h>
 
 #include "global.h"
+#include "constants.h"
 #include "protocol.h"
 #include "socket.h"
 #include "utils.h"
-#include "aes128.h"
+#include "crypto.h"
 
 int filerail_sendfile_handler(
 	int fd,
 	const char *resource_dir,
 	const char *resource_name,
 	struct stat *stat_resource,
-	const char *key_path,
-	const char* ckpt_path);
+	const char* ckpt_path,
+	filerail_AES_keys *K);
 
 int filerail_recvfile_handler(
 	int fd,
 	const char *resource_name,
 	const char *resource_dir,
 	const char *resource_path,
-	const char *key_path,
-	const char* ckpt_path);
+	const char* ckpt_path,
+	filerail_AES_keys *K);
 
 // handles sending of files
 int filerail_sendfile_handler(
@@ -38,8 +38,8 @@ int filerail_sendfile_handler(
 	const char *resource_dir,
 	const char *resource_name,
 	struct stat *stat_resource,
-	const char *key_path,
-	const char* ckpt_path)
+	const char* ckpt_path,
+	filerail_AES_keys *K)
 {
 	int exit_status;
 	struct zip_t *zip;
@@ -48,8 +48,6 @@ int filerail_sendfile_handler(
 	filerail_file_offset fo;
 	filerail_command_header command;
 	filerail_response_header response;
-	aesCryptoInfo ci;
-	AES_keys K;
 	char current_dir[MAX_PATH_LENGTH], zip_filename[MAX_RESOURCE_LENGTH], option;
 	uint8_t hash[MD5_HASH_LENGTH];
 
@@ -64,28 +62,6 @@ int filerail_sendfile_handler(
 		exit_status = -1;
 		goto clean_up;
 	}
-
-	// read the key file
-	PRINT(printf("Generating keys...\n"));
-	if (filerail_cd(key_path) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	ci = (aesCryptoInfo){"key.txt", "nonce.txt"};
-	if (readNonce(ci.nonce_file, &K) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	if (readKey(ci.key_file, &K) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	generateRoundKeys(&K);
-	if (filerail_cd(current_dir) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	PRINT(printf("Finished...\n"));
 
 	// change the directory to resource directory (because the zip lib requires the resource to be in current dir)
 	if (filerail_cd(resource_dir) == -1) {
@@ -179,7 +155,7 @@ int filerail_sendfile_handler(
 	// send the file
 	PRINT(printf("Ready to send resource...\n"));
   start = clock();
-  if (filerail_sendfile(fd, zip_filename, &K, fo.offset) == -1) {
+  if (filerail_sendfile(fd, zip_filename, K, fo.offset) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -227,8 +203,8 @@ int filerail_recvfile_handler(
 	const char *resource_name,
 	const char *resource_dir,
 	const char *resource_path,
-	const char *key_path,
-	const char* ckpt_path)
+	const char* ckpt_path,
+	filerail_AES_keys *K)
 {
   int exit_status;
   uint64_t offset;
@@ -242,8 +218,6 @@ int filerail_recvfile_handler(
 	filerail_response_header response;
 	filerail_resource_hash rh;
 	FILE *fp;
-	aesCryptoInfo ci;
-	AES_keys K;
 
 	fp = NULL;
 	offset = 0;
@@ -254,28 +228,6 @@ int filerail_recvfile_handler(
   	exit_status = -1;
   	goto clean_up;
   }
-
-  // read the keys
-	PRINT(printf("Generating keys...\n"));
-	if (filerail_cd(key_path) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	ci = (aesCryptoInfo){"key.txt", "nonce.txt"};
-	if (readNonce(ci.nonce_file, &K) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	if (readKey(ci.key_file, &K) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	generateRoundKeys(&K);
-	if (filerail_cd(current_dir) == -1) {
-		exit_status = -1;
-		goto clean_up;
-	}
-	PRINT(printf("Finished...\n"));
 
 	// wait for sender to advertise md5 hash
 	PRINT(printf("Waiting for md5 hash...\n"););
@@ -289,7 +241,7 @@ int filerail_recvfile_handler(
   PRINT(printf("Searching for checkpoints...\n"));
 	ckpt_resource_path[0] = '\0';
 	strcpy(ckpt_resource_path, ckpt_path);
-	filerail_hash_to_string(rh.hash, hex_str);
+	filerail_hash_to_str(rh.hash, hex_str);
 	strcat(ckpt_resource_path, "/");
 	strcat(ckpt_resource_path, hex_str);
 
@@ -365,7 +317,7 @@ int filerail_recvfile_handler(
 	// recv the file
   PRINT(printf("Waiting for server to respond...\n"));
   start = clock();
-  if (filerail_recvfile(fd, resource_path, &K, offset, ckpt_resource_path, resource_path) == -1) {
+  if (filerail_recvfile(fd, resource_path, K, offset, ckpt_resource_path, resource_path) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }

@@ -10,6 +10,7 @@
 #include "filerail/protocol.h"
 #include "filerail/socket.h"
 #include "filerail/utils.h"
+#include "filerail/crypto.h"
 #include "filerail/operations.h"
 
 int main(int argc, char *argv[]) {
@@ -29,6 +30,7 @@ int main(int argc, char *argv[]) {
 	filerail_command_header command;
 	filerail_resource_header resource;
 	filerail_response_header response;
+	filerail_AES_keys K;
 	struct stat stat_path;
 	char resource_path[MAX_PATH_LENGTH];
 
@@ -99,7 +101,12 @@ int main(int argc, char *argv[]) {
 
 	// check if key file exists
 	if (!filerail_is_exists(key_path, &stat_path)) {
-		printf("Couldn't open key directory\n");
+		printf("Couldn't open key file\n");
+		goto parent_clean_up;
+	}
+	// read keys
+	if (filerail_read_AES_keys(key_path, &K) == -1) {
+		exit_status = -1;
 		goto parent_clean_up;
 	}
 
@@ -221,8 +228,8 @@ int main(int argc, char *argv[]) {
 											resource.resource_name,
 											resource.resource_dir,
 											resource_path,
-											key_path,
-											ckpt_path
+											ckpt_path,
+											&K
 									) == -1) {
 									exit_status = -1;
 								}
@@ -308,8 +315,8 @@ int main(int argc, char *argv[]) {
 										resource.resource_dir,
 										resource.resource_name,
 										&stat_path,
-										key_path,
-										ckpt_path) == -1) {
+										ckpt_path,
+										&K) == -1) {
 									exit_status = -1;
 								}
 							} else {

@@ -6,10 +6,6 @@
 
 #include "constants.h"
 
-#define MD5_HASH_LENGTH 16
-#define NUM_ATTRS_FOR_RESOURCE_HEADER 3
-#define NUM_ATTRS_FOR_DATA_PACKET 3
-
 // filerail commands
 enum COMMAND {
 	GET, // get resource from server

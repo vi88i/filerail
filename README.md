@@ -1,6 +1,6 @@
 <p align="center"><img src="https://github.com/vi88i/filerail/blob/main/assets/filerail.png" alt="filerail"></p>
 
-<p align="center"><b>Host a simple and cheap peer-to-peer file transfer program on your Linux server</b>.</p>
+<p align="center"><b>Host a simple and cheap peer-to-peer file transfer program on your Linux server.</b></p>
 
 ---
 
@@ -9,7 +9,7 @@
 - Single command upload and download feature.
 - Checkpointing download and upload, and resume back whenever you are back online.
 - Compresses your data before sending.
-- Encryption using AES-128 in CTR mode of operation. (in the current commit encryption is disabled)
+- Encryption using AES-128 in CBC mode of operation.
 - Uses MD5 hash to verify integrity at receiver side.
 - Uses <a href="https://msgpack.org/index.html">MessagePack</a> for data interchange, to increase portablility among linux different systems.
 
@@ -37,11 +37,11 @@ chmod +x setup.sh
 - Spin filerail server.
 
 ```bash
-$ gcc -I/home/vi88i/filerail/deps/zip/src -o filerail_server filerail_server.c /home/vi88i/filerail/deps/msgpack-c/libmsgpackc.a /home/vi88i/filerail/deps/openssl/libcrypto.a
+$ gcc -I./deps/zip/src -o filerail_server filerail_server.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a
 ```
 
 ```bash
-# usage: -v -d [-i ipv4 address] [-p port] [-k key directory] [-c checkpoints directory]
+# usage: -v -d [-i ipv4 address] [-p port] [-k key path] [-c checkpoints directory]
 ```
 
 ```bash
@@ -55,7 +55,7 @@ options:
 3. -d : DNS resolution of provided DNS name
 4. -i : IPv4 address of server
 5. -p : port
-6. -k : key directory (requires absolute path to key directory)
+6. -k : key path (requires absolute path to key file)
 7. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
@@ -71,12 +71,12 @@ $ sudo netstat -pln | grep 8000
 - Compile client side code.
 
 ```bash
-$ gcc -I/home/vi88i/filerail/deps/zip/src -o filerail_server filerail_server.c /home/vi88i/filerail/deps/msgpack-c/libmsgpackc.a /home/vi88i/filerail/deps/openssl/libcrypto.a
+$ gcc -I./deps/zip/src -o filerail_client filerail_client.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a
 ```
 
 ```bash
 # usage: -v -d [-i ipv4 address] [-p port] [-o operation] [-r resource path] 
-#           [-d destination path] [-k key directory] [-c checkpoints directory]
+#           [-d destination path] [-k key path] [-c checkpoints directory]
 ```
 
 ```text
@@ -89,7 +89,7 @@ options:
 6. -o : operation {put, get, ping}
 7. -r : resource path (requires absolute path to resource)
 8. -d : destination path (requires absolute path to destination)
-9. -k : key directory (requires absolute path to key directory)
+9. -k : key path (requires absolute path to key file)
 10. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
@@ -116,23 +116,18 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 
 ## Setup keys
 
-- filerail uses AES-128 (CTR mode).
-- It requires two keys stored in two separate files (in single directory), and both keys are of 128-bit length.
-- Pair of hex digits are separated by space, and last hex digit is delimited by newline (\n).
+- filerail uses AES-128 (CBC mode).
+- It requires two paramaters IV (initialization vector) and key, both are of 128 bit length.
+- First 48 bytes of key file consists of IV, and the remaining 48 bytes are keys.
+- Pair of hex digits are separated by space, and last hex digit of each parameter is delimited by newline (\n).
 
 ### Example
 
 #### Key file
 
 ```text
-54 68 61 74 73 20 6D 79 20 4B 75 6E 67 20 46 75
-
-```
-
-#### Nonce file
-
-```text
 A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
+54 68 61 74 73 20 6D 79 20 4B 75 6E 67 20 46 75
 
 ```
 

@@ -15,5 +15,10 @@
 #define TIME_OUT 36000
 // time out on recv during file transfer
 #define MAX_IO_TIME_OUT 10
+#define MD5_HASH_LENGTH 16
+#define NUM_ATTRS_FOR_RESOURCE_HEADER 3
+#define NUM_ATTRS_FOR_DATA_PACKET 3
+#define KEY_FILE_SIZE 96
+#define AES_KEY_SIZE 16
 
 #endif

@@ -7,6 +7,7 @@
 #include "filerail/constants.h"
 #include "filerail/socket.h"
 #include "filerail/utils.h"
+#include "filerail/crypto.h"
 #include "filerail/operations.h"
 
 int main(int argc, char *argv[]) {
@@ -20,6 +21,7 @@ int main(int argc, char *argv[]) {
 	char option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 	char *ip, *port, *operation, *res_path, *des_path, *key_path, *ckpt_path;
 	struct stat stat_path;
+	filerail_AES_keys K;
 	filerail_response_header response;
 	filerail_resource_header resource;
 
@@ -102,8 +104,14 @@ int main(int argc, char *argv[]) {
 	}
 
 	// check if key file exists
+	// check if key file exists
 	if (!filerail_is_exists(key_path, &stat_path)) {
-		printf("Couldn't open key directory\n");
+		printf("Couldn't open key file\n");
+		goto clean_up;
+	}
+	// read keys
+	if (filerail_read_AES_keys(key_path, &K) == -1) {
+		exit_status = -1;
 		goto clean_up;
 	}
 
@@ -187,7 +195,7 @@ int main(int argc, char *argv[]) {
 								// if overwrite is ok, start the sending process
 								put_file:
 								printf("Starting transfer process...\n");
-								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path, key_path, ckpt_path) == -1) {
+								if (filerail_sendfile_handler(fd, resource_dir, resource_name, &stat_path, ckpt_path, &K) == -1) {
 									exit_status = -1;
 								}
 							} else {
@@ -268,7 +276,7 @@ int main(int argc, char *argv[]) {
 								}
 								// and start the file transfer process
 								strcat(resource_path, ".zip");
-								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, key_path, ckpt_path) == -1) {
+								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, ckpt_path, &K) == -1) {
 									exit_status = -1;
 								}
 							} else {

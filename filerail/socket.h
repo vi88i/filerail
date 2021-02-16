@@ -19,7 +19,7 @@
 #include "constants.h"
 #include "protocol.h"
 #include "utils.h"
-#include "aes128.h"
+#include "crypto.h"
 #include "serializer.h"
 #include "deserializer.h"
 
@@ -48,8 +48,9 @@ int filerail_recv_resource_header(int fd, filerail_resource_header *ptr);
 int filerail_recv_file_offset(int fd, filerail_file_offset *ptr);
 int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr);
 int filerail_recv_data_packet(int fd, filerail_data_packet *ptr);
-int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset);
-int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset, const char *ckpt_resource_path, const char *resource_path);
+int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, uint64_t offset);
+int filerail_recvfile(int fd, const char *zip_filename, filerail_AES_keys *K, uint64_t offset,
+	const char *ckpt_resource_path, const char *resource_path);
 
 static int filerail_socket(int domain, int type, int protocol) {
 	int fd;
@@ -253,7 +254,7 @@ int filerail_who(int fd, const char *action) {
 	return 0;
 }
 
-int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset) {
+int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, uint64_t offset) {
 	int exit_status;
 	uint64_t size, total;
 	size_t nbytes;
@@ -319,8 +320,6 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t of
 			goto clean_up;
   	}
 
-  	// encrypt
-  	// data.data_padding = AES_CTR(data.data_payload, nbytes, K);
   	data.data_size = nbytes;
 
   	// send the data packet
@@ -349,7 +348,7 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t of
 int filerail_recvfile(
 	int fd,
 	const char *zip_filename,
-	AES_keys *K,
+	filerail_AES_keys *K,
 	uint64_t offset,
 	const char *ckpt_resource_path,
 	const char *resource_path
@@ -406,8 +405,6 @@ int filerail_recvfile(
 			goto clean_up;
 		}
 
-		// remember to include the data padding (else AES decryption fails)
-		// AES_CTR(data.data_payload, data.data_size + data.data_padding, K);
 		nbytes = data.data_size;
 
 		if (fwrite((void *)data.data_payload, 1, nbytes, fp) != nbytes && ferror(fp)) {
