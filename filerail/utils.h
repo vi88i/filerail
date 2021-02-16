@@ -15,7 +15,7 @@
 #include "global.h"
 #include "constants.h"
 #include "protocol.h"
-#include "../deps/zip/src/zip.c"
+#include "zip.c"
 
 bool filerail_check_storage_size(off_t resource_size);
 bool filerail_is_file(struct stat *stat_resource);

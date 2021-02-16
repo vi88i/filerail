@@ -17,6 +17,19 @@
 
 An application layer protocol built on top of TCP. After connection establishment, client and server exchange messages to check if request made by client is feasible. Once request is deemed feasible, file/directory transfer process starts.
 
+---
+
+# Install
+
+```bash
+git clone https://github.com/vi88i/filerail.git
+cd filerail
+chmod +x setup.sh
+./setup.sh
+```
+
+---
+
 # Setup
 
 ## On server side
@@ -24,7 +37,7 @@ An application layer protocol built on top of TCP. After connection establishmen
 - Spin filerail server.
 
 ```bash
-$ gcc -o filerail_server filerail_server.c <full path to libmsgpackc.a> -lssl -lcrypto -Wall
+$ gcc -I/home/vi88i/filerail/deps/zip/src -o filerail_server filerail_server.c /home/vi88i/filerail/deps/msgpack-c/libmsgpackc.a /home/vi88i/filerail/deps/openssl/libcrypto.a
 ```
 
 ```bash
@@ -58,7 +71,7 @@ $ sudo netstat -pln | grep 8000
 - Compile client side code.
 
 ```bash
-$ gcc -o filerail_server filerail_server.c <full path to libmsgpackc.a> -lssl -lcrypto -Wall
+$ gcc -I/home/vi88i/filerail/deps/zip/src -o filerail_server filerail_server.c /home/vi88i/filerail/deps/msgpack-c/libmsgpackc.a /home/vi88i/filerail/deps/openssl/libcrypto.a
 ```
 
 ```bash
@@ -125,7 +138,7 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ---
 
-## Dependencies
+# Dependencies
 
 1. <a href="https://github.com/kuba--/zip">kuba--/zip</a> 
 2. <a href="https://github.com/openssl/openssl">openssl/openssl</a>
@@ -133,6 +146,6 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ---
 
-## NOTE
+# NOTE
 
 - Windows and OS X not supported.

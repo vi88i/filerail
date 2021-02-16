@@ -15,7 +15,6 @@
 #include "socket.h"
 #include "utils.h"
 #include "aes128.h"
-#include "../deps/kuba__zip/zip.h"
 
 int filerail_sendfile_handler(
 	int fd,
