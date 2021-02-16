@@ -33,7 +33,7 @@ typedef struct {
 typedef struct {
 	uint32_t nonce[4];
 	uint32_t tmp_nonce[4];
-	uint32_t w[(1 + NUM_ROUNDS) * NUM_ROUNDS];
+	uint32_t w[(1 + NUM_ROUNDS) * NUM_WORDS];
 } AES_keys;
 
 typedef struct {
@@ -378,7 +378,7 @@ void SubBytes(AES_state *st);
 void ShiftRows(AES_state *st);
 void MixColumns(AES_state *st);
 void AESRound(AES_state *st, AES_keys *K, int i);
-int AES_CTR(unsigned char data[], const size_t len, AES_keys *K);
+int AES_CTR(uint8_t *data, const size_t len, AES_keys *K);
 
 int toDecimal(char c) {
 	switch(c) {
@@ -653,7 +653,7 @@ void AESRound(AES_state *st, AES_keys *K, int i) {
 }
 
 // returns number of padded bytes
-int AES_CTR(unsigned char *data, const size_t len, AES_keys *K) {
+int AES_CTR(uint8_t *data, const size_t len, AES_keys *K) {
 	int i, j, k, cur, tmp_cur;
 	uint8_t buffer[NUM_BLOCKS], tmp_data[BUFFER_SIZE];
 	AES_state st;

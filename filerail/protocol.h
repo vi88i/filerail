@@ -3,6 +3,7 @@
 
 #include <sys/types.h>
 #include <stdint.h>
+
 #include "constants.h"
 
 #define MD5_HASH_LENGTH 16

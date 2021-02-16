@@ -128,15 +128,19 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (strcmp(operation, "ping") == 0) {
-		if (filerail_send_response_header(fd, PING) == -1) {
+		if (filerail_send_command_header(fd, PING) == -1) {
 			exit_status = -1;
 			goto clean_up;
 		}
-		if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
+		if (filerail_recv_response_header(fd, &response) == -1) {
 			exit_status = -1;
 			goto clean_up;
 		}
-		printf("PONG\n");
+		if (response.response_type == PONG) {
+			printf("PONG\n");
+		} else {
+			printf("PROTOCOL NOT FOLLOWED\n");
+		}
 	} else if (strcmp(operation, "put") == 0) {
 		// res path and des path is necessary
 		if (res_path == NULL || des_path == NULL) {
@@ -162,7 +166,7 @@ int main(int argc, char *argv[]) {
 							goto clean_up;
 						}
 						// server performs checks, and sends response
-						if (filerail_recv_protocol_data(fd, (void*)&response) == -1) {
+						if (filerail_recv_response_header(fd, &response) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
@@ -246,13 +250,13 @@ int main(int argc, char *argv[]) {
 							goto clean_up;
 						}
 						// check if sender is ready to transfer
-						if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
+						if (filerail_recv_response_header(fd, &response) == -1) {
 							exit_status = -1;
 							goto clean_up;
 						}
 						if (response.response_type == OK) {
 							// if sender is OK, get the resource size from sender
-							if (filerail_recv_protocol_data(fd, (void *)&resource) == -1) {
+							if (filerail_recv_resource_header(fd, &resource) == -1) {
 								exit_status = -1;
 								goto clean_up;
 							}

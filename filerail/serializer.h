@@ -16,57 +16,59 @@
 		return 0;											\
 	}
 
-size_t filerail_serialize_response_header(filerail_response_header *h, void *buf);
-size_t filerail_serialize_command_header(filerail_command_header *h, void *buf);
-size_t filerail_serialize_resource_header(filerail_resource_header *h, void *buf);
-size_t filerail_serialize_data_packet(filerail_resource_header *h, void *buf);
-size_t filerail_serialize_file_offset(filerail_file_offset *h, void *buf);
-size_t filerail_serialize_resource_hash(filerail_resource_hash *h, void *buf);
+size_t filerail_serialize_response_header(filerail_response_header *ptr, void **buf);
+size_t filerail_serialize_command_header(filerail_command_header *ptr, void **buf);
+size_t filerail_serialize_resource_header(filerail_resource_header *ptr, void **buf);
+size_t filerail_serialize_file_offset(filerail_file_offset *ptr, void **buf);
+size_t filerail_serialize_resource_hash(filerail_resource_hash *ptr, void **buf);
+size_t filerail_serialize_data_packet(filerail_data_packet *ptr, void **buf);
 
-size_t filerail_serialize_response_header(filerail_response_header *data, void *buf) {
-	int ret;
+size_t filerail_serialize_response_header(filerail_response_header *ptr, void **buf) {
+	size_t ret;
 	msgpack_sbuffer sbuf;
 	msgpack_packer pk;
 
 	msgpack_sbuffer_init(&sbuf);
 	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
 
-	ERR_CHECK(msgpack_pack_uint8(&pk, data->response_type), "serializer.h filerail_serialize_response_header");
+	ERR_CHECK(msgpack_pack_uint8(&pk, ptr->response_type), "serializer.h filerail_serialize_response_header");
 
-	buf = malloc(sbuf.size);
-	if (buf == NULL) {
+	*buf = malloc(sbuf.size);
+	if (*buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "serializer.h filerail_serialize_response_header");
 		return 0;
 	}
 	ret = sbuf.size;
-	memcpy(buf, sbuf.data, sbuf.size);
+	memcpy(*buf, sbuf.data, sbuf.size);
 
 	msgpack_sbuffer_destroy(&sbuf);
 	return ret;
 }
 
-size_t filerail_serialize_command_header(filerail_command_header *data, void *buf) {
-	int ret;
+size_t filerail_serialize_command_header(filerail_command_header *ptr, void **buf) {
+	size_t ret;
 	msgpack_sbuffer sbuf;
 	msgpack_packer pk;
 
 	msgpack_sbuffer_init(&sbuf);
 	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
 
-	ERR_CHECK(msgpack_pack_uint8(&pk, data->command_type), "serializer.h filerail_serialize_command_header");
+	ERR_CHECK(msgpack_pack_uint8(&pk, ptr->command_type), "serializer.h filerail_serialize_command_header");
 
-	buf = malloc(sbuf.size);
-	if (buf == NULL) {
+	*buf = malloc(sbuf.size);
+	if (*buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "serializer.h filerail_serialize_command_header");
 		return 0;
 	}
 	ret = sbuf.size;
-	memcpy(buf, sbuf.data, sbuf.size);
+	memcpy(*buf, sbuf.data, sbuf.size);
 
 	msgpack_sbuffer_destroy(&sbuf);
 	return ret;
 }
 
-size_t filerail_serialize_resource_header(filerail_resource_header *data, void *buf) {
-	int ret;
+size_t filerail_serialize_resource_header(filerail_resource_header *ptr, void **buf) {
+	size_t ret;
 	msgpack_sbuffer sbuf;
 	msgpack_packer pk;
 
@@ -78,7 +80,7 @@ size_t filerail_serialize_resource_header(filerail_resource_header *data, void *
 		"serializer.h filerail_serialize_resource_header"
 	);
 	ERR_CHECK(
-		msgpack_pack_uint64(&pk, data->resource_size),
+		msgpack_pack_uint64(&pk, ptr->resource_size),
 		"serializer.h filerail_serialize_resource_header"
 	);
 	ERR_CHECK(
@@ -86,7 +88,7 @@ size_t filerail_serialize_resource_header(filerail_resource_header *data, void *
 		"serializer.h filerail_serialize_resource_header"
 	);
 	ERR_CHECK(
-		msgpack_pack_str_body(&pk, data->resource_name, MAX_RESOURCE_LENGTH),
+		msgpack_pack_str_body(&pk, ptr->resource_name, MAX_RESOURCE_LENGTH),
 		"serializer.h filerail_serialize_resource_header"
 	);
 	ERR_CHECK(
@@ -94,23 +96,73 @@ size_t filerail_serialize_resource_header(filerail_resource_header *data, void *
 		"serializer.h filerail_serialize_resource_header"
 	);
 	ERR_CHECK(
-		msgpack_pack_str_body(&pk, data->resource_dir),
+		msgpack_pack_str_body(&pk, ptr->resource_dir, MAX_PATH_LENGTH),
 		"serializer.h filerail_serialize_resource_header"
 	);
 
-	buf = malloc(sbuf.size);
-	if (buf == NULL) {
+	*buf = malloc(sbuf.size);
+	if (*buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "serializer.h filerail_serialize_resource_header");
 		return 0;
 	}
 	ret = sbuf.size;
-	memcpy(buf, sbuf.data, sbuf.size);
+	memcpy(*buf, sbuf.data, sbuf.size);
 
 	msgpack_sbuffer_destroy(&sbuf);
 	return ret;
 }
 
-size_t filerail_serialize_data_packet(filerail_data_packet *data, void *buf) {
-	int i, ret;
+size_t filerail_serialize_file_offset(filerail_file_offset *ptr, void **buf) {
+	size_t ret;
+	msgpack_sbuffer sbuf;
+	msgpack_packer pk;
+
+	msgpack_sbuffer_init(&sbuf);
+	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+
+	ERR_CHECK(msgpack_pack_uint64(&pk, ptr->offset), "serializer.h filerail_serialize_file_offset");
+
+	*buf = malloc(sbuf.size);
+	if (*buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "serializer.h filerail_serialize_file_offset");
+		return 0;
+	}
+	ret = sbuf.size;
+	memcpy(*buf, sbuf.data, sbuf.size);
+
+	msgpack_sbuffer_destroy(&sbuf);
+	return ret;
+}
+
+size_t filerail_serialize_resource_hash(filerail_resource_hash *ptr, void **buf) {
+	int i;
+	size_t ret;
+	msgpack_sbuffer sbuf;
+	msgpack_packer pk;
+
+	msgpack_sbuffer_init(&sbuf);
+	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+
+	ERR_CHECK(msgpack_pack_array(&pk, MD5_HASH_LENGTH), "serializer.h filerail_serialize_resource_hash");
+	for (i = 0; i < MD5_HASH_LENGTH; i++) {
+		ERR_CHECK(msgpack_pack_uint8(&pk, ptr->hash[i]), "serializer.h filerail_serialize_resource_hash");
+	}
+
+	*buf = malloc(sbuf.size);
+	if (*buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "serializer.h filerail_serialize_resource_hash");
+		return 0;
+	}
+	ret = sbuf.size;
+	memcpy(*buf, sbuf.data, sbuf.size);
+
+	msgpack_sbuffer_destroy(&sbuf);
+	return ret;
+}
+
+size_t filerail_serialize_data_packet(filerail_data_packet *ptr, void **buf) {
+	int i;
+	size_t ret;
 	msgpack_sbuffer sbuf;
 	msgpack_packer pk;
 
@@ -127,70 +179,26 @@ size_t filerail_serialize_data_packet(filerail_data_packet *data, void *buf) {
 	);
 	for (i = 0; i < BUFFER_SIZE; i++) {
 		ERR_CHECK(
-			msgpack_pack_uint8(&pk, data->data_payload[i]),
+			msgpack_pack_uint8(&pk, ptr->data_payload[i]),
 			"serializer.h filerail_serialize_data_packet"
 		);
 	}
 	ERR_CHECK(
-		msgpack_pack_uint64(&pk, data->data_size),
+		msgpack_pack_uint64(&pk, ptr->data_size),
 		"serializer.h filerail_serialize_data_packet"
 	);
 	ERR_CHECK(
-		msgpack_pack_uint64(&pk, data->data_padding),
+		msgpack_pack_uint64(&pk, ptr->data_padding),
 		"serializer.h filerail_serialize_data_packet"
 	);
 
-	buf = malloc(sbuf.size);
-	if (buf == NULL) {
+	*buf = malloc(sbuf.size);
+	if (*buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "serializer.h filerail_serialize_data_packet");
 		return 0;
 	}
 	ret = sbuf.size;
-	memcpy(buf, sbuf.data, sbuf.size);
-
-	msgpack_sbuffer_destroy(&sbuf);
-	return ret;
-}
-
-size_t filerail_serialize_file_offset(filerail_file_offset *data, void *buf) {
-	int ret;
-	msgpack_sbuffer sbuf;
-	msgpack_packer pk;
-
-	msgpack_sbuffer_init(&sbuf);
-	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
-
-	ERR_CHECK(msgpack_pack_uint8(&pk, data->offset), "serializer.h filerail_serialize_file_offset");
-
-	buf = malloc(sbuf.size);
-	if (buf == NULL) {
-		return 0;
-	}
-	ret = sbuf.size;
-	memcpy(buf, sbuf.data, sbuf.size);
-
-	msgpack_sbuffer_destroy(&sbuf);
-	return ret;
-}
-
-size_t filerail_serialize_resource_hash(filerail_resource_hash *data, void *buf) {
-	int i, ret;
-	msgpack_sbuffer sbuf;
-	msgpack_packer pk;
-
-	msgpack_sbuffer_init(&sbuf);
-	msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
-
-	ERR_CHECK(msgpack_pack_array(&pk, MD5_HASH_LENGTH), "serializer.h filerail_serialize_resource_hash");
-	for (i = 0; i < MD5_HASH_LENGTH; i++) {
-		ERR_CHECK(msgpack_pack_uint8(&pk, data->hash[i]), "serializer.h filerail_serialize_resource_hash")
-	}
-
-	buf = malloc(sbuf.size);
-	if (buf == NULL) {
-		return 0;
-	}
-	ret = sbuf.size;
-	memcpy(buf, sbuf.data, sbuf.size);
+	memcpy(*buf, sbuf.data, sbuf.size);
 
 	msgpack_sbuffer_destroy(&sbuf);
 	return ret;

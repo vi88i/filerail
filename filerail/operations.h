@@ -139,7 +139,7 @@ int filerail_sendfile_handler(
 		receive response from receiver (whether it wants to resume from previous checkpoint
 		or restart entire process)
 	*/
-	if (filerail_recv_protocol_data(fd, (void *)&command) == -1) {
+	if (filerail_recv_command_header(fd, &command) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -159,7 +159,7 @@ int filerail_sendfile_handler(
 				goto clean_up;
 			}
 			// if sender agrees to resume, wait for receiver to send offset of zip file
-			if (filerail_recv_protocol_data(fd, (void *)&fo) == -1) {
+			if (filerail_recv_file_offset(fd, &fo) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
@@ -190,7 +190,7 @@ int filerail_sendfile_handler(
 
   // wait for receiver to compute the hash, and verify integrity
   PRINT(printf("Verifying hash...\n"));
-  if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
+  if (filerail_recv_response_header(fd, &response) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -280,7 +280,7 @@ int filerail_recvfile_handler(
 
 	// wait for sender to advertise md5 hash
 	PRINT(printf("Waiting for md5 hash...\n"););
-	if (filerail_recv_protocol_data(fd, (void *)&rh) == -1) {
+	if (filerail_recv_resource_hash(fd, &rh) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -302,6 +302,7 @@ int filerail_recvfile_handler(
 				exit_status = -1;
 				goto restart;
 			}
+			// file corruption handled here
 			if (fread((void *)&ckpt, 1, sizeof(ckpt), fp) != sizeof(ckpt)) {
 				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fread");
 				exit_status = -1;
@@ -328,7 +329,7 @@ int filerail_recvfile_handler(
 				goto clean_up;
 			}
 			// wait for response
-			if (filerail_recv_protocol_data(fd, (void *)&response) == -1) {
+			if (filerail_recv_response_header(fd, &response) == -1) {
 				exit_status = -1;
 				goto clean_up;
 			}
@@ -404,7 +405,7 @@ int filerail_recvfile_handler(
   		goto clean_up;
   	}
   	PRINT(printf("md5 hash doesn't match...\n"));
-  	goto hash_failed;
+  	goto clean_files;
   }
   PRINT(printf("Finished...\n"));
 
@@ -418,7 +419,7 @@ int filerail_recvfile_handler(
   PRINT(printf("Finished...\n"));
 
   // oops
-  hash_failed:
+  clean_files:
   // go back to previous directory
   if (filerail_cd(current_dir) == -1) {
   	exit_status = -1;

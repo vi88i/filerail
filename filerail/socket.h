@@ -20,6 +20,8 @@
 #include "protocol.h"
 #include "utils.h"
 #include "aes128.h"
+#include "serializer.h"
+#include "deserializer.h"
 
 static int filerail_socket(int domain, int type, int protocol);
 static int filerail_bind(int fd, const struct sockaddr *addr, socklen_t addrlen);
@@ -34,13 +36,18 @@ int filerail_close(int fd);
 int filerail_create_tcp_server(char *ip, char *port);
 int filerail_connect_to_tcp_server(char *ip, char *port);
 int filerail_who(int fd, const char *action);
-int filerail_send_command_header(int fd, uint8_t type);
 int filerail_send_response_header(int fd, uint8_t type);
+int filerail_send_command_header(int fd, uint8_t type);
 int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resource_size);
 int filerail_send_file_offset(int fd, uint64_t offset);
 int filerail_send_resource_hash(int fd, uint8_t *hash);
-int filerail_send_data_packet(int fd, filerail_data_packet *data);
-int filerail_recv_protocol_data(int fd, void *protocol_format);
+int filerail_send_data_packet(int fd, filerail_data_packet *ptr);
+int filerail_recv_response_header(int fd, filerail_response_header *ptr);
+int filerail_recv_command_header(int fd, filerail_command_header *ptr);
+int filerail_recv_resource_header(int fd, filerail_resource_header *ptr);
+int filerail_recv_file_offset(int fd, filerail_file_offset *ptr);
+int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr);
+int filerail_recv_data_packet(int fd, filerail_data_packet *ptr);
 int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset);
 int filerail_recvfile(int fd, const char *zip_filename, AES_keys *K, uint64_t offset, const char *ckpt_resource_path, const char *resource_path);
 
@@ -298,7 +305,9 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t of
 	}
   while (size != 0) {
   	// read from file
+  	memset(data.data_payload, 0, BUFFER_SIZE);
   	nbytes = fread((void *)data.data_payload, 1, min(BUFFER_SIZE, size), fp);
+
   	/*
   		usually fread(...nb) == nb
   		if nb != fread(...nb) and feof(fp) (no errors)
@@ -309,14 +318,17 @@ int filerail_sendfile(int fd, const char *zip_filename, AES_keys *K, uint64_t of
 			exit_status = -1;
 			goto clean_up;
   	}
+
   	// encrypt
-  	data.data_padding = AES_CTR(data.data_payload, nbytes, K);
+  	// data.data_padding = AES_CTR(data.data_payload, nbytes, K);
   	data.data_size = nbytes;
+
   	// send the data packet
-  	if (filerail_send_data_packet(fd, (void *)&data) == -1) {
+  	if (filerail_send_data_packet(fd, &data) == -1) {
   		exit_status = -1;
   		goto clean_up;
   	}
+
   	// subtract the bytes sent
   	size -= nbytes;
   	PRINT(filerail_progress_bar(size / (1.0 * total)));
@@ -369,7 +381,7 @@ int filerail_recvfile(
 	}
 
 	// receive the size
-  if (filerail_recv_protocol_data(fd, (void *)&resource) == -1) {
+  if (filerail_recv_resource_header(fd, &resource) == -1) {
   	exit_status = -1;
   	goto clean_up;
   }
@@ -380,30 +392,36 @@ int filerail_recvfile(
 
 	// initialize the checkpoint struct
 	ckpt.offset = offset;
+
 	// set the timeout
 	if (filerail_set_timeout(fd, SOL_SOCKET, SO_RCVTIMEO, MAX_IO_TIME_OUT, 0) == -1) {
 		exit_status = -1;
 		goto clean_up;
 	}
+
 	while (size != 0) {
 		// receive the data packet
-		if (filerail_recv_protocol_data(fd, (void *)&data) == -1) {
+		if (filerail_recv_data_packet(fd, &data) == -1) {
 			exit_status = -1;
 			goto clean_up;
 		}
-		// decrypt
-		nbytes = data.data_size;
+
 		// remember to include the data padding (else AES decryption fails)
-		AES_CTR(data.data_payload, nbytes + data.data_padding, K);
+		// AES_CTR(data.data_payload, data.data_size + data.data_padding, K);
+		nbytes = data.data_size;
+
 		if (fwrite((void *)data.data_payload, 1, nbytes, fp) != nbytes && ferror(fp)) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
 			exit_status = -1;
 			goto clean_up;
 		}
+
 		// flush anything in the stream, so that it writes immediately (best practice ;) )
 		fflush(fp);
+
 		// update the offset
 		ckpt.offset += nbytes;
+
 		// write the checkpoint to tmp file
 		fckpt = fopen(tmp_ckpt_resource_path, "wb");
 		if (fckpt == NULL) {
@@ -420,10 +438,11 @@ int filerail_recvfile(
 		// it is important to close the file, before renaming
 		fclose(fckpt);
 		fckpt = NULL;
+
 		/*
 			Why rename?
 			fwrite(checkpoint) is not atomic. If we directly attempt to write checkpoint using fwrite
-			and there is a hardware/software failure, the checkpoint file will be corrupted.
+			and there is a process is interrupted, the checkpoint file will be corrupted.
 			So we will write the checkpoint to tmp file, and rename tmp file to required name.
 			rename() is atomic. So we can be completely sure that checkpoint is not corrupted
 		*/
@@ -450,126 +469,390 @@ int filerail_recvfile(
 	return exit_status;
 }
 
-// send command header
-int filerail_send_command_header(int fd, uint8_t type) {
-	uint32_t size;
-	filerail_command_header command;
-
-	size = htonl(sizeof(command));
-	command.command_type = type;
-
-	if (
-		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
-		filerail_send(fd, (void *)&command, ntohl(size), 0)
-		)
-	{
-		return -1;
-	}
-	return 0;
-}
-
 // send response header
 int filerail_send_response_header(int fd, uint8_t type) {
+	void *buf;
+	int exit_status;
 	uint32_t size;
 	filerail_response_header response;
 
-	size = htonl(sizeof(response));
+	buf = NULL;
+	exit_status = 0;
 	response.response_type = type;
+	size = filerail_serialize_response_header(&response, &buf);
+	if (size == 0) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = htonl(size);
 
 	if (
 		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
-		filerail_send(fd, (void *)&response, ntohl(size), 0) == -1
+		filerail_send(fd, buf, ntohl(size), 0) == -1
 		)
 	{
-		return -1;
+		exit_status = -1;
 	}
-	return 0;
+
+	clean_up:
+	free(buf);
+	return exit_status;
+}
+
+// send command header
+int filerail_send_command_header(int fd, uint8_t type) {
+	void *buf;
+	int exit_status;
+	uint32_t size;
+	filerail_command_header command;
+
+	buf = NULL;
+	exit_status = 0;
+	command.command_type = type;
+	size = filerail_serialize_command_header(&command, &buf);
+	filerail_deserialize_command_header(&command, buf, size);
+	if (size == 0) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = htonl(size);
+
+	if (
+		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
+		filerail_send(fd, buf, ntohl(size), 0)
+		)
+	{
+		exit_status = -1;
+	}
+
+	clean_up:
+	free(buf);
+	return exit_status;
 }
 
 // send resource header
 int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resource_size) {
+	void *buf;
+	int exit_status;
 	uint32_t size;
 	filerail_resource_header resource;
 
-	size = htonl(sizeof(resource));
+	buf = NULL;
+	exit_status = 0;
 	memset(resource.resource_name, 0, MAX_RESOURCE_LENGTH);
 	memset(resource.resource_dir, 0, MAX_PATH_LENGTH);
 	strcpy(resource.resource_name, name);
 	strcpy(resource.resource_dir, dir);
 	resource.resource_size = resource_size;
+	size = filerail_serialize_resource_header(&resource, &buf);
+	if (size == 0) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = htonl(size);
 
 	if (
 		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
-		filerail_send(fd, (void *)&resource, ntohl(size), 0) == -1
+		filerail_send(fd, buf, ntohl(size), 0) == -1
 		)
 	{
-		return -1;
+		exit_status = -1;
 	}
-	return 0;
+
+	clean_up:
+	free(buf);
+	return exit_status;
 }
 
 // send file offset
 int filerail_send_file_offset(int fd, uint64_t offset) {
+	void *buf;
+	int exit_status;
 	uint32_t size;
 	filerail_file_offset fo;
 
-	size = htonl(sizeof(fo));
+	buf = NULL;
+	exit_status = 0;
 	fo.offset = offset;
+	size = filerail_serialize_file_offset(&fo, &buf);
+	if (size == 0) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = htonl(size);
 
 	if (
 		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
-		filerail_send(fd, (void *)&fo, ntohl(size), 0) == -1
+		filerail_send(fd, buf, ntohl(size), 0) == -1
 		)
 	{
-		return -1;
+		exit_status = -1;
 	}
-	return 0;
+
+	clean_up:
+	free(buf);
+	return exit_status;
 }
 
 // send resource hash
 int filerail_send_resource_hash(int fd, uint8_t *hash) {
+	void *buf;
+	int exit_status;
 	uint32_t size;
 	filerail_resource_hash rh;
 
-	size = htonl(sizeof(rh));
+	buf = NULL;
+	exit_status = 0;
 	memcpy(rh.hash, hash, MD5_HASH_LENGTH);
+	size = filerail_serialize_resource_hash(&rh, &buf);
+	if (size == 0) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = htonl(size);
 
 	if (
 		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
-		filerail_send(fd, (void *)&rh, ntohl(size), 0) == -1
+		filerail_send(fd, buf, ntohl(size), 0) == -1
 		)
 	{
-		return -1;
+		exit_status = -1;
 	}
-	return 0;
+
+	clean_up:
+	free(buf);
+	return exit_status;
 }
 
-int filerail_send_data_packet(int fd, filerail_data_packet *data) {
+int filerail_send_data_packet(int fd, filerail_data_packet *ptr) {
+	void *buf;
+	int exit_status;
 	uint32_t size;
 
-	size = htonl(sizeof(*data));
+	buf = NULL;
+	exit_status = 0;
+	size = filerail_serialize_data_packet(ptr, &buf);
+	if (size == 0) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = htonl(size);
 
 	if (
 		filerail_send(fd, (void *)&size, sizeof(uint32_t), 0) == -1 ||
-		filerail_send(fd, (void *)data, ntohl(size), 0) == -1
+		filerail_send(fd, buf, ntohl(size), 0) == -1
 		)
 	{
-		return -1;
+		exit_status = -1;
 	}
-	return 0;
+
+	clean_up:
+	free(buf);
+	return exit_status;
 }
 
-int filerail_recv_protocol_data(int fd, void *protocol_format) {
+int filerail_recv_response_header(int fd, filerail_response_header *ptr) {
+	void *buf;
+	int exit_status;
 	uint32_t size;
 
+	exit_status = 0;
+	buf = NULL;
+	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = ntohl(size);
+	buf = malloc(size);
+	if (buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_response_header");
+		exit_status = -1;
+		goto clean_up;
+	}
+
 	if (
-		filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1 ||
-		filerail_recv(fd, protocol_format, ntohl(size), MSG_WAITALL)
+		filerail_recv(fd, buf, size, MSG_WAITALL) == -1 ||
+		!filerail_deserialize_response_header(ptr, buf, size)
 		)
 	{
-		return -1;
+		exit_status = -1;
 	}
-	return 0;
+
+	clean_up:
+	free(buf);
+	return exit_status;
+}
+
+int filerail_recv_command_header(int fd, filerail_command_header *ptr) {
+	void *buf;
+	int exit_status;
+	uint32_t size;
+
+	exit_status = 0;
+	buf = NULL;
+	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = ntohl(size);
+	buf = malloc(size);
+	if (buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_command_header");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	if (
+		filerail_recv(fd, buf, size, MSG_WAITALL) ||
+		!filerail_deserialize_command_header(ptr, buf, size)
+		)
+	{
+		exit_status = -1;
+	}
+
+	clean_up:
+	free(buf);
+	return exit_status;
+}
+
+int filerail_recv_resource_header(int fd, filerail_resource_header *ptr) {
+	void *buf;
+	int exit_status;
+	uint32_t size;
+
+	exit_status = 0;
+	buf = NULL;
+	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = ntohl(size);
+	buf = malloc(size);
+	if (buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_resource_header");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	if (
+		filerail_recv(fd, buf, size, MSG_WAITALL) ||
+		!filerail_deserialize_resource_header(ptr, buf, size)
+		)
+	{
+		exit_status = -1;
+	}
+
+	clean_up:
+	free(buf);
+	return exit_status;
+}
+
+int filerail_recv_file_offset(int fd, filerail_file_offset *ptr) {
+	void *buf;
+	int exit_status;
+	uint32_t size;
+
+	exit_status = 0;
+	buf = NULL;
+	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = ntohl(size);
+	buf = malloc(size);
+	if (buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_file_offset");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	if (
+		filerail_recv(fd, buf, size, MSG_WAITALL) ||
+		!filerail_deserialize_file_offset(ptr, buf, size)
+		)
+	{
+		exit_status = -1;
+	}
+
+	clean_up:
+	free(buf);
+	return exit_status;
+}
+
+int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr) {
+	void *buf;
+	int exit_status;
+	uint32_t size;
+
+	exit_status = 0;
+	buf = NULL;
+	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = ntohl(size);
+	buf = malloc(size);
+	if (buf == NULL) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_resource_hash");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	if (
+		filerail_recv(fd, buf, size, MSG_WAITALL) ||
+		!filerail_deserialize_resource_hash(ptr, buf, size)
+		)
+	{
+		exit_status = -1;
+	}
+
+	clean_up:
+	free(buf);
+	return exit_status;
+}
+
+int filerail_recv_data_packet(int fd, filerail_data_packet *ptr) {
+	void *buf;
+	int exit_status;
+	uint32_t size;
+
+	exit_status = 0;
+	buf = NULL;
+	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_data_packet");
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	size = ntohl(size);
+	buf = malloc(size);
+	if (buf == NULL) {
+		exit_status = -1;
+		goto clean_up;
+	}
+
+	if (
+		filerail_recv(fd, buf, size, MSG_WAITALL) ||
+		!filerail_deserialize_data_packet(ptr, buf, size)
+		)
+	{
+		exit_status = -1;
+	}
+
+	clean_up:
+	free(buf);
+	return exit_status;
 }
 
 // dns resolver
