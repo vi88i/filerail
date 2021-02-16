@@ -83,7 +83,7 @@ options:
 ### ping
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o ping
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o ping -k /home/key -c /home/ckpt
 PONG
 ```
 
