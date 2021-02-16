@@ -125,17 +125,14 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ---
 
-## Dependencies included
+## Dependencies
 
-1. <a href="https://github.com/kuba--/zip">kuba--/zip</a> (included in deps) 
-
-## Dependencies you need to install
-
-1. <a href="https://github.com/openssl/openssl">openssl</a> Release: 3.0.0-alpha12-dev
-2. <a href="https://github.com/msgpack/msgpack-c">msgpack-c</a> Release: 3.3.0 
+1. <a href="https://github.com/kuba--/zip">kuba--/zip</a> 
+2. <a href="https://github.com/openssl/openssl">openssl/openssl</a>
+3. <a href="https://github.com/msgpack/msgpack-c">msgpack/msgpack-c</a> 
 
 ---
 
-## Requirements
+## NOTE
 
-- Currently filerail is not protable. You need a Ubuntu 18.04.4 LTS x86_64 client and server. Along with gcc compiler and openssl.
+- Windows and OS X not supported.
