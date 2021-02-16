@@ -9,7 +9,7 @@
 - Single command upload and download feature.
 - Checkpointing download and upload, and resume back whenever you are back online.
 - Compresses your data before sending.
-- Encryption using AES-128 in CTR mode of operation.
+- Encryption using AES-128 in CTR mode of operation. (in the current commit encryption is disabled)
 - Uses MD5 hash to verify integrity at receiver side.
 - Uses <a href="https://msgpack.org/index.html">MessagePack</a> for data interchange, to increase portablility among linux different systems.
 
