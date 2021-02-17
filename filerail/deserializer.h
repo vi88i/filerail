@@ -113,10 +113,9 @@ bool filerail_deserialize_data_packet(filerail_data_packet *ptr, void *buf, size
 	if (msgpack_unpack_next(&msg, buf, size, NULL) == MSGPACK_UNPACK_SUCCESS) {
 		root = msg.data;
 		for (i = 0; i < BUFFER_SIZE; i++) {
-			ptr->data_payload[i] = (uint8_t)root.via.array.ptr[0].via.array.ptr[i].via.u64;
+			ptr->data_payload[i] = root.via.array.ptr[0].via.array.ptr[i].via.u64;
 		}
 		ptr->data_size = root.via.array.ptr[1].via.u64;
-		ptr->data_padding = root.via.array.ptr[2].via.u64;
 		exit_status = true;
 	}
 	msgpack_unpacked_destroy(&msg);

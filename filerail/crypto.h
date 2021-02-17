@@ -236,7 +236,7 @@ int filerail_decrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys
 	exit_status = 0;
 
 	memcpy(iv, K->iv, AES_KEY_SIZE);
-	ret = AES_set_decrypt_key(K->key, AES_KEY_SIZE * 8, &dec_key);;
+	ret = AES_set_decrypt_key(K->key, AES_KEY_SIZE * 8, &dec_key);
 	if (ret < 0) {
 		LOG(LOG_USER | LOG_INFO, "crypto.h filerail_decrypt AES_set_decrypt_key\n");
 		exit_status = -1;
@@ -247,24 +247,6 @@ int filerail_decrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys
 
 	clean_up:
 	return exit_status;
-}
-
-void filerail_test(filerail_AES_keys *K) {
-	size_t nbytes = 5;
-	uint8_t data[5] = {0x00, 0x01, 0x02, 0x03, 0x04};
-	uint8_t enc[5];
-	uint8_t dec[5];
-	filerail_encrypt(data, enc, nbytes, K);
-	for (int i = 0; i < nbytes; i++) {
-		printf("%02x", enc[i]);
-	}
-	printf("\n");
-	// filerail_decrypt(enc, dec, nbytes, K);
-	// for (int i = 0; i < nbytes; i++) {
-	// 	printf("%02x", dec[i]);
-	// }
-	// printf("\n");
-	// assert(memcmp(data, dec, nbytes) == 0);
 }
 
 #endif

@@ -270,8 +270,8 @@ int filerail_recvfile_handler(
 				exit_status = -1;
 				goto restart;
 			}
-			if (ckpt.offset != stat_path.st_size) {
-				PRINT(printf("Offset of checkpoint doesn't match resource size...\n"));
+			if (ckpt.offset > stat_path.st_size) {
+				PRINT(printf("Offset of checkpoint greater than zipped resource...\n"));
 				goto restart;
 			}
 			// ask if sender want to resume

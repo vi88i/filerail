@@ -10,11 +10,11 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
+#include <zip.c>
 
 #include "global.h"
 #include "constants.h"
 #include "protocol.h"
-#include "zip.c"
 
 bool filerail_check_storage_size(off_t resource_size);
 bool filerail_is_file(struct stat *stat_resource);
@@ -188,6 +188,7 @@ int filerail_rm(const char *resource_path) {
   struct stat stat_path, stat_entry;
   struct dirent *entry;
 
+  dir = NULL;
   exit_status = 0;
   if (lstat(resource_path, &stat_path) == -1) {
   	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat");

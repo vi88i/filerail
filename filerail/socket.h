@@ -41,7 +41,7 @@ int filerail_send_command_header(int fd, uint8_t type);
 int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resource_size);
 int filerail_send_file_offset(int fd, uint64_t offset);
 int filerail_send_resource_hash(int fd, uint8_t *hash);
-int filerail_send_data_packet(int fd, filerail_data_packet *ptr);
+int filerail_send_data_packet(int fd, uint8_t *out, uint64_t nbytes);
 int filerail_recv_response_header(int fd, filerail_response_header *ptr);
 int filerail_recv_command_header(int fd, filerail_command_header *ptr);
 int filerail_recv_resource_header(int fd, filerail_resource_header *ptr);
@@ -256,11 +256,11 @@ int filerail_who(int fd, const char *action) {
 
 int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, uint64_t offset) {
 	int exit_status;
+	uint8_t in[BUFFER_SIZE], out[BUFFER_SIZE];
 	uint64_t size, total;
 	size_t nbytes;
 	FILE *fp;
 	struct stat stat_path;
-	filerail_data_packet data;
 
 	fp = NULL;
 	exit_status = 0;
@@ -306,8 +306,8 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
 	}
   while (size != 0) {
   	// read from file
-  	memset(data.data_payload, 0, BUFFER_SIZE);
-  	nbytes = fread((void *)data.data_payload, 1, min(BUFFER_SIZE, size), fp);
+  	memset(in, 0, BUFFER_SIZE);
+  	nbytes = fread((void *)in, 1, min(BUFFER_SIZE, size), fp);
 
   	/*
   		usually fread(...nb) == nb
@@ -320,10 +320,13 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
 			goto clean_up;
   	}
 
-  	data.data_size = nbytes;
+  	if (filerail_encrypt(in, out, BUFFER_SIZE, K) == -1) {
+  		exit_status = -1;
+  		goto clean_up;
+  	}
 
   	// send the data packet
-  	if (filerail_send_data_packet(fd, &data) == -1) {
+  	if (filerail_send_data_packet(fd, out, nbytes) == -1) {
   		exit_status = -1;
   		goto clean_up;
   	}
@@ -354,10 +357,11 @@ int filerail_recvfile(
 	const char *resource_path
 	)
 {
-	int exit_status;
+	int i, exit_status;
 	ssize_t nbytes;
 	uint64_t size, total;
 	FILE *fp, *fckpt;
+	uint8_t out[BUFFER_SIZE];
 	char tmp_ckpt_resource_path[MAX_PATH_LENGTH];
 	filerail_resource_header resource;
 	filerail_data_packet data;
@@ -372,7 +376,19 @@ int filerail_recvfile(
 	strcat(tmp_ckpt_resource_path, ".tmp");
 
 	// open the resource
-	fp = fopen(zip_filename, "ab");
+	if (offset == 0) {
+		fp = fopen(zip_filename, "wb");
+	} else {
+		fp = fopen(zip_filename, "r+b");
+		for (i = 0; i < offset; i++) {
+			if (fgetc(fp) == EOF) {
+				LOG(LOG_USER | LOG_ERR, "Something went wrong while adjusting file offset...\n");
+				exit_status = -1;
+				goto clean_up;
+			}
+		}
+	}
+
 	if (fp == NULL) {
 		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
 		exit_status = -1;
@@ -406,8 +422,12 @@ int filerail_recvfile(
 		}
 
 		nbytes = data.data_size;
+  	if (filerail_decrypt(data.data_payload, out, BUFFER_SIZE, K) == -1) {
+  		exit_status = -1;
+  		goto clean_up;
+  	}
 
-		if (fwrite((void *)data.data_payload, 1, nbytes, fp) != nbytes && ferror(fp)) {
+		if (fwrite((void *)out, 1, nbytes, fp) != nbytes && ferror(fp)) {
 			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
 			exit_status = -1;
 			goto clean_up;
@@ -415,7 +435,6 @@ int filerail_recvfile(
 
 		// flush anything in the stream, so that it writes immediately (best practice ;) )
 		fflush(fp);
-
 		// update the offset
 		ckpt.offset += nbytes;
 
@@ -626,14 +645,17 @@ int filerail_send_resource_hash(int fd, uint8_t *hash) {
 	return exit_status;
 }
 
-int filerail_send_data_packet(int fd, filerail_data_packet *ptr) {
+int filerail_send_data_packet(int fd, uint8_t *out, uint64_t nbytes) {
 	void *buf;
 	int exit_status;
 	uint32_t size;
+	filerail_data_packet data;
 
 	buf = NULL;
 	exit_status = 0;
-	size = filerail_serialize_data_packet(ptr, &buf);
+	data.data_size = nbytes;
+	memcpy(data.data_payload, out, BUFFER_SIZE);
+	size = filerail_serialize_data_packet(&data, &buf);
 	if (size == 0) {
 		exit_status = -1;
 		goto clean_up;

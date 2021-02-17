@@ -13,7 +13,7 @@
 #define ERR_CHECK(x, msg)         \
 	if (x != 0) {									  \
 		LOG(LOG_USER | LOG_ERR, msg); \
-		return 0;											\
+		return 0;										  \
 	}
 
 size_t filerail_serialize_response_header(filerail_response_header *ptr, void **buf);
@@ -185,10 +185,6 @@ size_t filerail_serialize_data_packet(filerail_data_packet *ptr, void **buf) {
 	}
 	ERR_CHECK(
 		msgpack_pack_uint64(&pk, ptr->data_size),
-		"serializer.h filerail_serialize_data_packet"
-	);
-	ERR_CHECK(
-		msgpack_pack_uint64(&pk, ptr->data_padding),
 		"serializer.h filerail_serialize_data_packet"
 	);
 

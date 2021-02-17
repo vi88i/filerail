@@ -53,7 +53,6 @@ typedef struct _filerail_resource_header {
 typedef struct _filerail_data_packet {
 	uint8_t data_payload[BUFFER_SIZE]; // data
 	uint64_t data_size; // size of actual data
-	uint64_t data_padding; // padding added by AES encryption
 } filerail_data_packet;
 
 // serializes checkpoint

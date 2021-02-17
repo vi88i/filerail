@@ -1,6 +1,6 @@
 <p align="center"><img src="https://github.com/vi88i/filerail/blob/main/assets/filerail.png" alt="filerail"></p>
 
-<p align="center"><b>Host a simple and cheap peer-to-peer file transfer program on your Linux server.</b></p>
+<p align="center"><b>Host file transfer service for free on your Linux machine.</b></p>
 
 ---
 
@@ -37,7 +37,7 @@ $ ./setup.sh
 - Spin filerail server.
 
 ```bash
-$ gcc -I./deps/zip/src -o filerail_server filerail_server.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a
+$ gcc -I./deps/zip/src -o filerail_server filerail_server.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a -Wall
 ```
 
 ```bash
@@ -45,7 +45,7 @@ $ gcc -I./deps/zip/src -o filerail_server filerail_server.c ./deps/msgpack-c/lib
 ```
 
 ```bash
-$ ./filerail_server -v -i 127.0.0.1 -p 8000 -k /home/key -c /home/server_ckpts
+$ ./filerail_server -v -i 127.0.0.1 -p 8000 -k /home/key.txt -c /home/server_ckpts
 ```
 
 ```text
@@ -72,7 +72,7 @@ $ cat /var/log/syslog | grep filerail
 - Compile client side code.
 
 ```bash
-$ gcc -I./deps/zip/src -o filerail_client filerail_client.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a
+$ gcc -I./deps/zip/src -o filerail_client filerail_client.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a -Wall
 ```
 
 ```bash
@@ -94,23 +94,25 @@ options:
 10. -c : checkpoints directory (requires absolute path to checkpoints directory)
 ```
 
+## Operations
+
 ### ping
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o ping -k /home/key -c /home/ckpt
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o ping -k /home/key.txt -c /home/ckpt
 PONG
 ```
 
 ### Upload file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key -c /home/ckpt
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key.txt -c /home/ckpt
 ```
 
 ### Download file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key -c /home/ckpt
+$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key.txt -c /home/ckpt
 ```
 
 ---
@@ -121,10 +123,9 @@ $ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2
 - It requires two paramaters IV (initialization vector) and key, both are of 128 bit length.
 - First 48 bytes of key file consists of IV, and the remaining 48 bytes are keys.
 - Pair of hex digits are separated by space, and last hex digit of each parameter is delimited by newline (\n).
+- Same key and IV must be stored on server side and client side.
 
 ### Example
-
-#### Key file
 
 ```text
 A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
@@ -142,6 +143,6 @@ A9 51 D3 CC B5 F9 56 48 31 1B 5E 25 A9 E3 A1 DB
 
 ---
 
-# NOTE
+# Note
 
 - Windows and OS X not supported.
