@@ -14,19 +14,24 @@
 #include "filerail/operations.h"
 
 int main(int argc, char *argv[]) {
+	// arguemet parsing variables
 	int opt;
-	extern int verbose;
 	extern char *optarg;
 	extern int optopt;
+	bool should_resolve;
+	char *ip, *port, *key_path, *ckpt_path;
 
+	// logging related variables
+	extern int verbose;
 	extern int is_server;
 
+	// socket related variables and exit_status
 	int fd, clifd, exit_status;
-	bool should_resolve;
 	pid_t pid, sid;
 	socklen_t addrlen;
 	struct sockaddr_in cliaddr;
-	char *ip, *port, *key_path, *ckpt_path;
+
+	// // get/put related variables
 	filerail_command_header command;
 	filerail_resource_header resource;
 	filerail_response_header response;
@@ -104,7 +109,7 @@ int main(int argc, char *argv[]) {
 		printf("Couldn't open key file\n");
 		goto parent_clean_up;
 	}
-	// read keys
+	// if it exists, read keys
 	if (filerail_read_AES_keys(key_path, &K) == -1) {
 		exit_status = -1;
 		goto parent_clean_up;
@@ -163,16 +168,19 @@ int main(int argc, char *argv[]) {
 
 	while (true) {
 		memset(&cliaddr, 0, sizeof(cliaddr));
+		// accept client
 		clifd = filerail_accept(fd, (struct sockaddr*)&cliaddr, &addrlen);
 		if (clifd == -1) {
 			exit_status = -1;
 			goto parent_clean_up;
 		}
+		// print about who joined
 		if (filerail_who(clifd, "joined") == -1) {
 			exit_status = -1;
 			goto parent_clean_up;
 		}
 
+		// fork and server from child process
 		pid = fork();
 		if (pid == -1) {
 			LOG(LOG_ERR | LOG_USER, "filerail_server fork\n");
@@ -188,6 +196,18 @@ int main(int argc, char *argv[]) {
 			}
 
 			if (command.command_type == PUT) {
+				/*
+					Servers wait for meta data about resource which will be uploaded.
+					Server checks:
+					1. Check if there is sufficient stoarge
+					2. Duplicate condition (inform client about this and wait for response)
+					3. Check if resource is writeable
+					4. If there are no duplicates (resource with same resource name as sent by client), check if destination
+					   directory is present and writeable.
+
+					If 2. is responded with OVERWRITE or 4. passes, upload process starts
+				*/
+
 				// receive information about resource which is about to be sent by client
 				if (filerail_recv_resource_header(clifd, &resource) == -1) {
 					exit_status = -1;
@@ -272,10 +292,27 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			} else if (command.command_type == PING) {
+				/*
+					Server responds with PONG, so that client can check connectivity.
+				*/
 				if (filerail_send_response_header(clifd, PONG) == -1) {
 					exit_status = -1;
 				}
 			} else if(command.command_type == GET) {
+				/*
+					Server receives meta data about the resource that client needs.
+					Server checks:
+					1. Check if resource requested exists
+					2. Check if resource requested is readable
+					3. Check if resource requested is file or directory
+
+					If all test passes server sends OK, so that client prepares to receive messages.
+
+					Server sends the size of file.
+					Client checks if file size is feasible, and sends ABORT/OK.
+
+					If client sends OK, download process starts.
+				*/
 				// receive the resource request from client
 				if (filerail_recv_resource_header(clifd, &resource) == -1) {
 					exit_status = -1;

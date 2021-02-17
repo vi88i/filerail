@@ -11,15 +11,21 @@
 #include "filerail/operations.h"
 
 int main(int argc, char *argv[]) {
+	// arguemet parsing variables
 	int opt;
-	extern int verbose;
 	extern char *optarg;
 	extern int optopt;
-
-	int fd, exit_status;
-	bool should_resolve;
-	char option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 	char *ip, *port, *operation, *res_path, *des_path, *key_path, *ckpt_path;
+	bool should_resolve;
+
+	// enable verbose mode
+	extern int verbose;
+
+	// socket file des, and exit status
+	int fd, exit_status;
+
+	// get/put related variables
+	char option, resource_name[MAX_RESOURCE_LENGTH], resource_dir[MAX_PATH_LENGTH], resource_path[MAX_PATH_LENGTH];
 	struct stat stat_path;
 	filerail_AES_keys K;
 	filerail_response_header response;
@@ -97,19 +103,18 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	// check important fields
+	// check important fields are not NULL
 	if (ip == NULL || port == NULL || operation == NULL || key_path == NULL || ckpt_path == NULL) {
 		printf("-i, -p, -o, -k and -c are required options\n");
 		goto clean_up;
 	}
 
 	// check if key file exists
-	// check if key file exists
 	if (!filerail_is_exists(key_path, &stat_path)) {
 		printf("Couldn't open key file\n");
 		goto clean_up;
 	}
-	// read keys
+	// if it exists, read keys
 	if (filerail_read_AES_keys(key_path, &K) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -136,6 +141,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (strcmp(operation, "ping") == 0) {
+		/*
+			Client: sends PING command
+			Server: sends PONG as response, if nothing went wrong at server end
+		*/
 		if (filerail_send_command_header(fd, PING) == -1) {
 			exit_status = -1;
 			goto clean_up;
@@ -150,6 +159,27 @@ int main(int argc, char *argv[]) {
 			printf("PROTOCOL NOT FOLLOWED\n");
 		}
 	} else if (strcmp(operation, "put") == 0) {
+		/*
+			Client wants to upload resource on server.
+			Client checks:
+			1. If resource exists on client side, only then it can upload
+			2. If it has read access to that resource
+			3. The resource is file or directory
+			4. If all checks passed, send PUT command.
+
+			If no error occurs while transmitting PUT, server will be ready for listening messages from client.
+			Client sends resource name (name of file/dir), destination directory on server side and size of resource
+			Server performs checks and sends:
+			1. NO_ACCESS: Server doesn't have write permission at destination directory
+			2. DUPLICATE_RESOURCE_NAME: There already exists a resource with same resource name in destination directory
+				 Client can send YES (remove previous resource)/NO(abort the process) option
+			3. NOT_FOUND: Destination directory not found on server side.
+			4. INSUFFICIENT_SPACE: self-explanatory
+
+			If server responds with OK or client responds with OVERWRITE for DUPLICATE_RESOURCE_NAME prompt
+			uploading starts.
+		*/
+
 		// res path and des path is necessary
 		if (res_path == NULL || des_path == NULL) {
 			printf("-r and -d are required options for \"%s\"\n", operation);
@@ -225,6 +255,24 @@ int main(int argc, char *argv[]) {
 			printf("%s doesn't exists\n", res_path);
 		}
 	} else if(strcmp(operation, "get") == 0) {
+		/*
+			Client wants to download resource from server.
+			Client checks:
+			1. If there is a another resource with same resource name at destination directory on client side.
+			2. Checks if client has write permission at destination directory.
+			3. If there is no duplicate resource, client checks if destination directory exists with write permission.
+			4. If all checks pass, send GET command.
+
+			If no error occurs while transmitting GET, server will be ready for listening messages from client.
+			Client sends the resource name and destination directory of resource on server side.
+			Server performs checks and if all checks on server side pass it will send OK, else ABORT.
+
+			If OK is received, server sends the meta data about resource.
+			Client checks if there is sufficient storage available on client side, and responds OK/ABORT.
+
+			If client sends OK, download process starts.
+		*/
+
 		// res path and des path is necessary
 		if (res_path == NULL || des_path == NULL) {
 			printf("-r and -d are required options for \"%s\"\n", operation);
@@ -274,7 +322,7 @@ int main(int argc, char *argv[]) {
 								if (filerail_send_response_header(fd, OK) == -1) {
 									exit_status = -1;
 								}
-								// and start the file transfer process
+								// and start the file transfer process, the target resource name is always <resource_name>.zip
 								strcat(resource_path, ".zip");
 								if (filerail_recvfile_handler(fd, resource_name, des_path, resource_path, ckpt_path, &K) == -1) {
 									exit_status = -1;

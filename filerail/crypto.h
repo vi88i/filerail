@@ -13,6 +13,9 @@
 #include "global.h"
 #include "constants.h"
 
+/*
+	Parameters of AES-128 CBC
+*/
 typedef struct _filerail_AES_keys {
 	uint8_t iv[AES_KEY_SIZE];
 	uint8_t key[AES_KEY_SIZE];
@@ -26,6 +29,7 @@ uint8_t filerail_char_to_hex(uint8_t c);
 int filerail_encrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys *K);
 int filerail_decrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys *K);
 
+// maps uint8_t hex value to character hex
 char filerail_dec_to_hex_char(uint8_t c) {
 	switch(c) {
 		case 0: return '0';
@@ -48,6 +52,7 @@ char filerail_dec_to_hex_char(uint8_t c) {
 	return '0';
 }
 
+// converts keys to human readable form (used for checkpointing)
 void filerail_hash_to_str(const uint8_t *hash, char *hex_str) {
 	int i;
 
@@ -57,6 +62,7 @@ void filerail_hash_to_str(const uint8_t *hash, char *hex_str) {
 	}
 }
 
+// computes md5 hash of zip file
 int filerail_md5(uint8_t *hash, const char *zip_filename) {
 	int i, exit_status;
 	size_t nbytes;
@@ -107,6 +113,7 @@ int filerail_md5(uint8_t *hash, const char *zip_filename) {
 	return exit_status;
 }
 
+// maps character equivalent in hex to hex in uint8_t
 uint8_t filerail_char_to_hex(uint8_t c) {
 	switch(c) {
 		case 'A':
@@ -135,6 +142,7 @@ uint8_t filerail_char_to_hex(uint8_t c) {
 	return 0;
 }
 
+// read keys from key file
 int filerail_read_AES_keys(char *key_path, filerail_AES_keys *K) {
 	int i, exit_status, idx;
 	uint8_t pair[2];
@@ -149,6 +157,7 @@ int filerail_read_AES_keys(char *key_path, filerail_AES_keys *K) {
 		K->key[i] = 0U;
 	}
 
+	// check if key file is of KEY_FILE_SIZE bytes
 	if (stat(key_path, &stat_path) == -1) {
 		LOG(LOG_USER | LOG_ERR, "crypto.h filerail_read_AES_keys stat\n");
 		exit_status = -1;
@@ -173,7 +182,9 @@ int filerail_read_AES_keys(char *key_path, filerail_AES_keys *K) {
 				pair[0] = filerail_char_to_hex(pair[0]);
 				pair[1] = filerail_char_to_hex(pair[1]);
 				ptr[idx++] = (pair[0] << 4) | (pair[1]);
+				// skip space or \n
 				fgetc(fp);
+				// indicates first key (128 bit) is read
 				if (idx == AES_KEY_SIZE) {
 					idx = 0;
 					ptr = K->key;
@@ -207,6 +218,7 @@ int filerail_read_AES_keys(char *key_path, filerail_AES_keys *K) {
 	return exit_status;
 }
 
+// encrypts
 int filerail_encrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys *K) {
 	int ret, exit_status;
 	AES_KEY enc_key;
@@ -214,6 +226,7 @@ int filerail_encrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys
 
 	exit_status = 0;
 
+	// internally IV is modified, so we have to make a deep copy
 	memcpy(iv, K->iv, AES_KEY_SIZE);
 	ret = AES_set_encrypt_key(K->key, AES_KEY_SIZE * 8, &enc_key);
 	if (ret < 0) {
@@ -228,6 +241,7 @@ int filerail_encrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys
 	return exit_status;
 }
 
+// decrypts
 int filerail_decrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys *K) {
 	int ret, exit_status;
 	AES_KEY dec_key;
@@ -235,6 +249,7 @@ int filerail_decrypt(uint8_t *in, uint8_t *out, size_t nbytes, filerail_AES_keys
 
 	exit_status = 0;
 
+	// internally IV is modified, so we have to make a deep copy
 	memcpy(iv, K->iv, AES_KEY_SIZE);
 	ret = AES_set_decrypt_key(K->key, AES_KEY_SIZE * 8, &dec_key);
 	if (ret < 0) {

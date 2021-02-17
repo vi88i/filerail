@@ -16,6 +16,15 @@
 		return 0;										  \
 	}
 
+/*
+	Pretty self-explanatory if you refer docs.
+	General notes:
+	1. To pack multiple objects, we need to create an array because sbuf doesn't act like a stack.
+	Check resource_header serialization.
+
+	2. We need to create deep copy of sbuf.data, because on destroying sbuf the serialized data maybe erased.
+*/
+
 size_t filerail_serialize_response_header(filerail_response_header *ptr, void **buf);
 size_t filerail_serialize_command_header(filerail_command_header *ptr, void **buf);
 size_t filerail_serialize_resource_header(filerail_resource_header *ptr, void **buf);

@@ -25,7 +25,6 @@ bool filerail_is_resource_writeable(const char *resource_path);
 bool filerail_parse_resource_path(const char *resource_path, char *resource_name, char *resource_dir);
 int filerail_getcwd(char *dir);
 int filerail_cd(const char *path);
-bool filerail_zip_create(const char *resource_path);
 bool filerail_zip_folder(struct zip_t *zip, const char *resource_path);
 bool zip_file(struct zip_t *zip, const char *resource_name);
 int zip_on_extract_entry(const char *resource_name, void *arg);
@@ -42,6 +41,7 @@ bool filerail_check_storage_size(off_t resource_size) {
 		LOG(LOG_USER | LOG_ERR, "utils.h filerail_find_available_size statvfs\n");
 		return false;
 	}
+	// man statvfs, you will get it. (Basically checking if there exists enough memory blocks)
 	return (resource_size / buf.f_frsize) < buf.f_bavail;
 }
 
@@ -101,6 +101,7 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 			exit_status = false;
 			goto clean_up;
 		}
+		// if resource is folder, recursively zip it
 		if (S_ISDIR(s.st_mode)) {
 			if (!filerail_zip_folder(zip, path)) {
 				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder\n");
@@ -140,27 +141,6 @@ bool filerail_zip_file(struct zip_t *zip, const char *resource_path) {
 	return true;
 }
 
-// create a temporary zip file
-bool filerail_zip_create(const char *resource_path) {
-  bool exit_status;
-  char zip_filename[MAX_RESOURCE_LENGTH];
-  struct zip_t *zip;
-
-  exit_status = true;
-	strcpy(zip_filename, resource_path);
-	strcat(zip_filename, ".zip");
-
-  if ((zip = zip_open(zip_filename, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w')) == NULL) {
-		LOG(LOG_USER | LOG_ERR, "utils.h zip_create zip_open\n");
-		exit_status = false;
-		goto clean_up;
-  }
-
-  clean_up:
-  zip_close(zip);
-  return exit_status;
-}
-
 // call back for zip extract (check deps)
 int zip_on_extract_entry(const char *resource_name, void *arg) {
 	struct stat stat_resource;
@@ -172,6 +152,7 @@ int zip_on_extract_entry(const char *resource_name, void *arg) {
   return stat_resource.st_size;
 }
 
+// unzip
 bool zip_extract_resource(const char *source_path, const char *destination_path) {
 	if (zip_extract(source_path, destination_path, zip_on_extract_entry, NULL) == -1) {
 		LOG(LOG_USER | LOG_ERR, "utils.h zip_extract_resource zip_extract\n");
@@ -203,6 +184,7 @@ int filerail_rm(const char *resource_path) {
 	  	goto clean_up;
 	  }
   } else if (S_ISDIR(stat_path.st_mode)) {
+  	// if directory, recursively remove all sub-dir and files
 	  if ((dir = opendir(resource_path)) == NULL) {
 	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm opendir\n");
 	  	exit_status = -1;
@@ -288,6 +270,7 @@ bool filerail_parse_resource_path(const char *resource_path, char *resource_name
 	return true;
 }
 
+// get current dir
 int filerail_getcwd(char *dir) {
 	char *ret;
 
@@ -299,6 +282,7 @@ int filerail_getcwd(char *dir) {
 	return 0;
 }
 
+// change current dir
 int filerail_cd(const char *path) {
 	int ret;
 
@@ -310,6 +294,7 @@ int filerail_cd(const char *path) {
 	return 0;
 }
 
+// progress bar
 void filerail_progress_bar(double fraction) {
 	int x, cur;
 
@@ -327,6 +312,7 @@ void filerail_progress_bar(double fraction) {
 	}
 }
 
+// create a file
 int filerail_mkdir(const char *dir_path) {
 	if (mkdir(dir_path, 0777) == -1) {
 		LOG(LOG_USER | LOG_ERR, "utils.h filerail_mkdir mkdir\n");

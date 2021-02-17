@@ -52,6 +52,7 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
 int filerail_recvfile(int fd, const char *zip_filename, filerail_AES_keys *K, uint64_t offset,
 	const char *ckpt_resource_path, const char *resource_path);
 
+// pretty standard stuff
 static int filerail_socket(int domain, int type, int protocol) {
 	int fd;
 
@@ -62,6 +63,7 @@ static int filerail_socket(int domain, int type, int protocol) {
 	return fd;
 }
 
+// pretty standard stuff
 static int filerail_bind(int fd, const struct sockaddr *addr, socklen_t addrlen) {
 	int ret;
 
@@ -72,6 +74,7 @@ static int filerail_bind(int fd, const struct sockaddr *addr, socklen_t addrlen)
 	return ret;
 }
 
+// pretty standard stuff
 static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrlen) {
 	int ret;
 
@@ -82,6 +85,7 @@ static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrl
 	return ret;
 }
 
+// pretty standard stuff
 static int filerail_listen(int fd, int backlog) {
 	int ret;
 
@@ -92,6 +96,7 @@ static int filerail_listen(int fd, int backlog) {
 	return ret;
 }
 
+// pretty standard stuff
 static int filerail_setsockopt(int fd, int level, int option, const void *optval, socklen_t optlen) {
 	int ret;
 
@@ -124,6 +129,7 @@ static int filerail_set_timeout(int fd, int level, int option, int s, int u) {
 	return 0;
 }
 
+// pretty standard stuff
 int filerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 	int clifd;
 
@@ -134,6 +140,7 @@ int filerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 	return clifd;
 }
 
+// better close(), because it checks if fd is valid
 int filerail_close(int fd) {
 	int ret;
 
@@ -181,6 +188,7 @@ int filerail_create_tcp_server(char *ip, char *port) {
 	return -1;
 }
 
+// pretty standard stuff
 int filerail_connect_to_tcp_server(char *ip, char *port) {
 	int fd;
 	socklen_t addrlen;
@@ -209,6 +217,7 @@ int filerail_connect_to_tcp_server(char *ip, char *port) {
 	return -1;
 }
 
+// pretty standard stuff
 int filerail_send(int fd, void *buffer, size_t len, int flags) {
 	ssize_t nbytes, cur;
 
@@ -225,6 +234,7 @@ int filerail_send(int fd, void *buffer, size_t len, int flags) {
 	return 0;
 }
 
+// pretty standard stuff
 int filerail_recv(int fd, void *buffer, size_t len, int flags) {
 	ssize_t nbytes, cur;
 
@@ -242,6 +252,7 @@ int filerail_recv(int fd, void *buffer, size_t len, int flags) {
 	return 0;
 }
 
+// pretty standard stuff
 int filerail_who(int fd, const char *action) {
 	socklen_t addrlen;
 	struct sockaddr_in addr;
@@ -320,6 +331,7 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
 			goto clean_up;
   	}
 
+  	// encrypt
   	if (filerail_encrypt(in, out, BUFFER_SIZE, K) == -1) {
   		exit_status = -1;
   		goto clean_up;
@@ -424,6 +436,8 @@ int filerail_recvfile(
 		}
 
 		nbytes = data.data_size;
+
+		// decrypt
   	if (filerail_decrypt(data.data_payload, out, BUFFER_SIZE, K) == -1) {
   		exit_status = -1;
   		goto clean_up;
@@ -487,7 +501,13 @@ int filerail_recvfile(
 	return exit_status;
 }
 
-// send response header
+/*
+NOTE: Size of serialized message is advertised using uint32_t, for all filerail_send_x
+It is converted to htonl and ntohl (to handle endianess of system i guess)
+The receiver allocates enough memory to recevive serialized data.
+*/
+
+// send response header after serialization
 int filerail_send_response_header(int fd, uint8_t type) {
 	void *buf;
 	int exit_status;
@@ -518,7 +538,7 @@ int filerail_send_response_header(int fd, uint8_t type) {
 	return exit_status;
 }
 
-// send command header
+// send command header after serialization
 int filerail_send_command_header(int fd, uint8_t type) {
 	void *buf;
 	int exit_status;
@@ -550,7 +570,7 @@ int filerail_send_command_header(int fd, uint8_t type) {
 	return exit_status;
 }
 
-// send resource header
+// send resource header after serialization
 int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resource_size) {
 	void *buf;
 	int exit_status;
@@ -585,7 +605,7 @@ int filerail_send_resource_header(int fd, char *name, char *dir, uint64_t resour
 	return exit_status;
 }
 
-// send file offset
+// send file offset after serialization
 int filerail_send_file_offset(int fd, uint64_t offset) {
 	void *buf;
 	int exit_status;
@@ -616,7 +636,7 @@ int filerail_send_file_offset(int fd, uint64_t offset) {
 	return exit_status;
 }
 
-// send resource hash
+// send resource hash after serialization
 int filerail_send_resource_hash(int fd, uint8_t *hash) {
 	void *buf;
 	int exit_status;
@@ -647,6 +667,7 @@ int filerail_send_resource_hash(int fd, uint8_t *hash) {
 	return exit_status;
 }
 
+// send data packet after after serialization
 int filerail_send_data_packet(int fd, uint8_t *out, uint64_t nbytes) {
 	void *buf;
 	int exit_status;
@@ -678,6 +699,7 @@ int filerail_send_data_packet(int fd, uint8_t *out, uint64_t nbytes) {
 	return exit_status;
 }
 
+// deserialize and parse
 int filerail_recv_response_header(int fd, filerail_response_header *ptr) {
 	void *buf;
 	int exit_status;
@@ -685,6 +707,7 @@ int filerail_recv_response_header(int fd, filerail_response_header *ptr) {
 
 	exit_status = 0;
 	buf = NULL;
+	// receive size of serialized message and allocate buffer to recv it
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -711,6 +734,7 @@ int filerail_recv_response_header(int fd, filerail_response_header *ptr) {
 	return exit_status;
 }
 
+// deserialize and parse
 int filerail_recv_command_header(int fd, filerail_command_header *ptr) {
 	void *buf;
 	int exit_status;
@@ -718,6 +742,7 @@ int filerail_recv_command_header(int fd, filerail_command_header *ptr) {
 
 	exit_status = 0;
 	buf = NULL;
+	// receive size of serialized message and allocate buffer to recv it
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -744,6 +769,7 @@ int filerail_recv_command_header(int fd, filerail_command_header *ptr) {
 	return exit_status;
 }
 
+// deserialize and parse
 int filerail_recv_resource_header(int fd, filerail_resource_header *ptr) {
 	void *buf;
 	int exit_status;
@@ -751,6 +777,7 @@ int filerail_recv_resource_header(int fd, filerail_resource_header *ptr) {
 
 	exit_status = 0;
 	buf = NULL;
+	// receive size of serialized message and allocate buffer to recv it
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -777,6 +804,7 @@ int filerail_recv_resource_header(int fd, filerail_resource_header *ptr) {
 	return exit_status;
 }
 
+// deserialize and parse
 int filerail_recv_file_offset(int fd, filerail_file_offset *ptr) {
 	void *buf;
 	int exit_status;
@@ -784,6 +812,7 @@ int filerail_recv_file_offset(int fd, filerail_file_offset *ptr) {
 
 	exit_status = 0;
 	buf = NULL;
+	// receive size of serialized message and allocate buffer to recv it
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -810,6 +839,7 @@ int filerail_recv_file_offset(int fd, filerail_file_offset *ptr) {
 	return exit_status;
 }
 
+// deserialize and parse
 int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr) {
 	void *buf;
 	int exit_status;
@@ -817,6 +847,7 @@ int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr) {
 
 	exit_status = 0;
 	buf = NULL;
+	// receive size of serialized message and allocate buffer to recv it
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
 		exit_status = -1;
 		goto clean_up;
@@ -843,6 +874,7 @@ int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr) {
 	return exit_status;
 }
 
+// deserialize and parse
 int filerail_recv_data_packet(int fd, filerail_data_packet *ptr) {
 	void *buf;
 	int exit_status;
@@ -850,6 +882,7 @@ int filerail_recv_data_packet(int fd, filerail_data_packet *ptr) {
 
 	exit_status = 0;
 	buf = NULL;
+	// receive size of serialized message and allocate buffer to recv it
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
 		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_data_packet\n");
 		exit_status = -1;

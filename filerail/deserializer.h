@@ -10,6 +10,11 @@
 #include "constants.h"
 #include "protocol.h"
 
+/*
+	Reverse of serialization.
+	Deserializes messages received from socket, pretty self explanatory (refer msgpack-c wiki v2_0_c_overview)
+*/
+
 bool filerail_deserialize_response_header(filerail_response_header *ptr, void *buf, size_t size);
 bool filerail_deserialize_command_header(filerail_command_header *ptr, void *buf, size_t size);
 bool filerail_deserialize_resource_header(filerail_resource_header *ptr, void *buf, size_t size);
