@@ -175,7 +175,7 @@ int main(int argc, char *argv[]) {
 
 		pid = fork();
 		if (pid == -1) {
-			LOG(LOG_ERR | LOG_USER, "filerail_server fork");
+			LOG(LOG_ERR | LOG_USER, "filerail_server fork\n");
 			exit_status = -1;
 			goto parent_clean_up;
 		} else if (pid == 0) {
@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
 							} else if (command.command_type == ABORT) {
 								// do nothing wait for clean up
 							} else {
-								LOG(LOG_INFO | LOG_USER, "PROTOCOL NOT FOLLOWED");
+								LOG(LOG_INFO | LOG_USER, "PROTOCOL NOT FOLLOWED\n");
 							}
 						} else {
 							if (filerail_send_response_header(clifd, NO_ACCESS) == -1) {
@@ -247,7 +247,7 @@ int main(int argc, char *argv[]) {
 						// if file doesnt exist, check if dir is accessible
 						if (stat(resource.resource_dir, &stat_path) == -1) {
 							exit_status = -1;
-							LOG(LOG_ERR | LOG_USER, "filerail_server main stat");
+							LOG(LOG_ERR | LOG_USER, "filerail_server main stat\n");
 							if (filerail_send_response_header(clifd, NOT_FOUND) == -1) {
 								exit_status = -1;
 							}
@@ -320,7 +320,7 @@ int main(int argc, char *argv[]) {
 									exit_status = -1;
 								}
 							} else {
-								LOG(LOG_INFO | LOG_USER, "PROTOCOL NOT FOLLOWED");
+								LOG(LOG_INFO | LOG_USER, "PROTOCOL NOT FOLLOWED\n");
 							}
 						} else {
 							if (filerail_send_response_header(clifd, BAD_RESOURCE) == -1) {
@@ -338,14 +338,14 @@ int main(int argc, char *argv[]) {
 					}
 				}
 			} else {
-				LOG(LOG_ERR | LOG_USER, "PROTOCOL NOT FOLLOWED");
+				LOG(LOG_ERR | LOG_USER, "PROTOCOL NOT FOLLOWED\n");
 			}
 			child_clean_up:
 			filerail_close(clifd);
 			if (exit_status == -1) {
-				LOG(LOG_INFO | LOG_USER, "child process, FAILED");
+				LOG(LOG_INFO | LOG_USER, "child process, FAILED\n");
 			} else {
-				LOG(LOG_INFO | LOG_USER, "child process, SUCCESS");
+				LOG(LOG_INFO | LOG_USER, "child process, SUCCESS\n");
 			}
 			return exit_status;
 		}
@@ -355,9 +355,9 @@ int main(int argc, char *argv[]) {
 	filerail_close(clifd);
 	filerail_close(fd);
 	if (exit_status == -1) {
-		LOG(LOG_INFO | LOG_USER, "parent process, FAILED");
+		LOG(LOG_INFO | LOG_USER, "parent process, FAILED\n");
 	} else {
-		LOG(LOG_INFO | LOG_USER, "parent process, SUCCESS");
+		LOG(LOG_INFO | LOG_USER, "parent process, SUCCESS\n");
 	}
 	closelog();
 	while (wait(NULL) > 0);

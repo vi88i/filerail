@@ -77,7 +77,7 @@ int filerail_sendfile_handler(
 			!filerail_zip_folder(zip, resource_name)
 		)
 		{
-			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler");
+			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler\n");
 			goto clean_up;
 		}
 	} else {
@@ -86,7 +86,7 @@ int filerail_sendfile_handler(
 			!filerail_zip_file(zip, resource_name)
 			)
 		{
-			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler");
+			LOG(LOG_USER | LOG_ERR, "operations.h filerail_sendfile_handler\n");
 			goto clean_up;
 		}
 	}
@@ -249,13 +249,13 @@ int filerail_recvfile_handler(
 		if (filerail_is_readable(ckpt_resource_path)) {
 			// if checkpoint exists and it is readable, read the checkpoint
 			if ((fp = fopen(ckpt_resource_path, "rb")) == NULL) {
-				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fopen");
+				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fopen\n");
 				exit_status = -1;
 				goto restart;
 			}
 			// file corruption handled here
 			if (fread((void *)&ckpt, 1, sizeof(ckpt), fp) != sizeof(ckpt)) {
-				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fread");
+				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler fread\n");
 				exit_status = -1;
 				goto restart;
 			}
@@ -266,7 +266,7 @@ int filerail_recvfile_handler(
 			}
 			// check offset stored in checkpoint matches, the size of incompelete zip file (to make sure someone didnt modify)
 			if (stat(resource_path, &stat_path) == -1) {
-				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler stat");
+				LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler stat\n");
 				exit_status = -1;
 				goto restart;
 			}
@@ -300,7 +300,7 @@ int filerail_recvfile_handler(
 				goto clean_up;
 			}
 		} else {
-			LOG(LOG_USER | LOG_ERR, "You don't have read permission");
+			LOG(LOG_USER | LOG_ERR, "You don't have read permission\n");
 			exit_status = -1;
 			goto clean_up;
 		}
@@ -363,7 +363,7 @@ int filerail_recvfile_handler(
   // if hash matches unzip the resource
   PRINT(printf("Unzipping...\n"));
   if (zip_extract(zip_filename, resource_dir, zip_on_extract_entry, NULL) == -1) {
-  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler");
+  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_recvfile_handler\n");
   	exit_status = -1;
   	goto clean_up;
   }

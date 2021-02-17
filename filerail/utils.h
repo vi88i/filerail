@@ -39,7 +39,7 @@ bool filerail_check_storage_size(off_t resource_size) {
 	struct statvfs buf;
 
 	if (statvfs("/", &buf) == -1) {
-		LOG(LOG_USER | LOG_ERR, "utils.h filerail_find_available_size statvfs");
+		LOG(LOG_USER | LOG_ERR, "utils.h filerail_find_available_size statvfs\n");
 		return false;
 	}
 	return (resource_size / buf.f_frsize) < buf.f_bavail;
@@ -58,7 +58,7 @@ bool filerail_is_dir(struct stat *stat_resource) {
 // check if resource exists
 bool filerail_is_exists(const char *resource_path, struct stat *stat_resource) {
   if (lstat(resource_path, stat_resource) == -1) {
-  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_is_exists lstat");
+  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_is_exists lstat\n");
   	return false;
   }
   return true;
@@ -86,7 +86,7 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 	memset(path, 0, MAX_PATH_LENGTH);
 	dir = opendir(resource_path);
 	if (dir == NULL) {
-		LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder opendir");
+		LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder opendir\n");
 		exit_status = false;
 		goto clean_up;
 	}
@@ -103,7 +103,7 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 		}
 		if (S_ISDIR(s.st_mode)) {
 			if (!filerail_zip_folder(zip, path)) {
-				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder");
+				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder\n");
 				exit_status = false;
 				goto clean_up;
 			}
@@ -113,7 +113,7 @@ bool filerail_zip_folder(struct zip_t *zip, const char *resource_path) {
 				zip_entry_fwrite(zip, path) == -1 ||
 				zip_entry_close(zip) == -1
 			) {
-				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder");
+				LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_folder\n");
 				exit_status = false;
 				goto clean_up;
 			}
@@ -134,7 +134,7 @@ bool filerail_zip_file(struct zip_t *zip, const char *resource_path) {
 		zip_entry_fwrite(zip, resource_path) == -1 ||
 		zip_entry_close(zip) == -1
 	) {
-		LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_file");
+		LOG(LOG_USER | LOG_ERR, "utils.h filerail_zip_file\n");
 		return false;
 	}
 	return true;
@@ -151,7 +151,7 @@ bool filerail_zip_create(const char *resource_path) {
 	strcat(zip_filename, ".zip");
 
   if ((zip = zip_open(zip_filename, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w')) == NULL) {
-		LOG(LOG_USER | LOG_ERR, "utils.h zip_create zip_open");
+		LOG(LOG_USER | LOG_ERR, "utils.h zip_create zip_open\n");
 		exit_status = false;
 		goto clean_up;
   }
@@ -166,7 +166,7 @@ int zip_on_extract_entry(const char *resource_name, void *arg) {
 	struct stat stat_resource;
 
   if (lstat(resource_name, &stat_resource) == -1) {
-  	LOG(LOG_USER | LOG_ERR, "utils.h zip_on_extract_entry lstat");
+  	LOG(LOG_USER | LOG_ERR, "utils.h zip_on_extract_entry lstat\n");
   	return -1;
   }
   return stat_resource.st_size;
@@ -174,7 +174,7 @@ int zip_on_extract_entry(const char *resource_name, void *arg) {
 
 bool zip_extract_resource(const char *source_path, const char *destination_path) {
 	if (zip_extract(source_path, destination_path, zip_on_extract_entry, NULL) == -1) {
-		LOG(LOG_USER | LOG_ERR, "utils.h zip_extract_resource zip_extract");
+		LOG(LOG_USER | LOG_ERR, "utils.h zip_extract_resource zip_extract\n");
 		return false;
 	}
 	return true;
@@ -191,20 +191,20 @@ int filerail_rm(const char *resource_path) {
   dir = NULL;
   exit_status = 0;
   if (lstat(resource_path, &stat_path) == -1) {
-  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat");
+  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat\n");
   	exit_status = -1;
   	goto clean_up;
   }
 
   if (S_ISREG(stat_path.st_mode) || S_ISLNK(stat_path.st_mode)) {
 	  if (unlink(resource_path) == -1) {
-	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm unlink");
+	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm unlink\n");
 	  	exit_status = -1;
 	  	goto clean_up;
 	  }
   } else if (S_ISDIR(stat_path.st_mode)) {
 	  if ((dir = opendir(resource_path)) == NULL) {
-	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm opendir");
+	  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm opendir\n");
 	  	exit_status = -1;
 	    goto clean_up;
 	  }
@@ -219,7 +219,7 @@ int filerail_rm(const char *resource_path) {
 	    strcat(path, entry->d_name);
 
 	    if (lstat(path, &stat_entry) == -1) {
-		  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat");
+		  	LOG(LOG_USER | LOG_ERR, "utils.h filerail_rm lstat\n");
 		  	exit_status = -1;
 		  	goto clean_up;
 	    }
@@ -233,14 +233,14 @@ int filerail_rm(const char *resource_path) {
 	    }
 
 	    if (unlink(path) == -1) {
-		  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_rm unlink");
+		  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_rm unlink\n");
 		  	exit_status = -1;
 		    goto clean_up;
 	    }
 	  }
 
 	  if (rmdir(resource_path) == -1) {
-	  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_rm unlink");
+	  	LOG(LOG_USER | LOG_ERR, "operations.h filerail_rm unlink\n");
 	  	exit_status = -1;
 	    goto clean_up;
 	  }
@@ -293,7 +293,7 @@ int filerail_getcwd(char *dir) {
 
 	ret = getcwd(dir, MAX_PATH_LENGTH);
 	if (ret == NULL) {
-		LOG(LOG_USER | LOG_ERR, "utils.h filerail_getcwd getcwd");
+		LOG(LOG_USER | LOG_ERR, "utils.h filerail_getcwd getcwd\n");
 		return -1;
 	}
 	return 0;
@@ -304,7 +304,7 @@ int filerail_cd(const char *path) {
 
 	ret = chdir(path);
 	if (ret == -1) {
-		LOG(LOG_USER | LOG_ERR, "operations.h filerail_cd chdir");
+		LOG(LOG_USER | LOG_ERR, "operations.h filerail_cd chdir\n");
 		return -1;
 	}
 	return 0;
@@ -329,7 +329,7 @@ void filerail_progress_bar(double fraction) {
 
 int filerail_mkdir(const char *dir_path) {
 	if (mkdir(dir_path, 0777) == -1) {
-		LOG(LOG_USER | LOG_ERR, "utils.h filerail_mkdir mkdir");
+		LOG(LOG_USER | LOG_ERR, "utils.h filerail_mkdir mkdir\n");
 		return -1;
 	}
 	return 0;

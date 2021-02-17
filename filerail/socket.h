@@ -57,7 +57,7 @@ static int filerail_socket(int domain, int type, int protocol) {
 
 	fd = socket(domain, type, protocol);
 	if (fd == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_socket socket");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_socket socket\n");
 	}
 	return fd;
 }
@@ -67,7 +67,7 @@ static int filerail_bind(int fd, const struct sockaddr *addr, socklen_t addrlen)
 
 	ret = bind(fd, addr, addrlen);
 	if (ret == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_bind bind");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_bind bind\n");
 	}
 	return ret;
 }
@@ -77,7 +77,7 @@ static int filerail_connect(int fd, const struct sockaddr *addr, socklen_t addrl
 
 	ret = connect(fd, addr, addrlen);
 	if (ret == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_connect connect");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_connect connect\n");
 	}
 	return ret;
 }
@@ -87,7 +87,7 @@ static int filerail_listen(int fd, int backlog) {
 
 	ret = listen(fd, backlog);
 	if (ret == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_listen listen");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_listen listen\n");
 	}
 	return ret;
 }
@@ -97,7 +97,7 @@ static int filerail_setsockopt(int fd, int level, int option, const void *optval
 
 	ret = setsockopt(fd, level, option, optval, optlen);
 	if (ret == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_setsockopt setsockopt");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_setsockopt setsockopt\n");
 	}
 	return ret;
 }
@@ -129,7 +129,7 @@ int filerail_accept(int fd, struct sockaddr *addr, socklen_t *addrlen) {
 
 	clifd = accept(fd, addr, addrlen);
 	if (clifd == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_accept accept");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_accept accept\n");
 	}
 	return clifd;
 }
@@ -141,7 +141,7 @@ int filerail_close(int fd) {
 	if (filerail_is_fd_valid(fd)) {
 		ret = close(fd);
 		if (ret == -1) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_close");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_close\n");
 		}
 	}
 	return ret;
@@ -216,7 +216,7 @@ int filerail_send(int fd, void *buffer, size_t len, int flags) {
 	while (len != 0) {
 		nbytes = send(fd, buffer + cur, len, flags);
 		if (nbytes <= 0) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_send send");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_send send\n");
 			return -1;
 		}
 		len -= nbytes;
@@ -233,7 +233,7 @@ int filerail_recv(int fd, void *buffer, size_t len, int flags) {
 		nbytes = recv(fd, buffer + cur, len, flags);
 		// if nbytes == 0 => sender disconnected
 		if (nbytes <= 0) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv recv");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv recv\n");
 			return -1;
 		}
 		len -= nbytes;
@@ -247,7 +247,7 @@ int filerail_who(int fd, const char *action) {
 	struct sockaddr_in addr;
 
 	if (getpeername(fd, (struct sockaddr*)&addr, &addrlen) == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_who_called_exit getpeername");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_who_called_exit getpeername\n");
 		return -1;
 	}
 	PRINT(printf("%s:%d %s\n", inet_ntoa(addr.sin_addr), addr.sin_port, action));
@@ -268,21 +268,21 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
 	// open the resource
 	fp = fopen(zip_filename, "rb");
 	if (fp == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fopen");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fopen\n");
 		exit_status = -1;
 		goto clean_up;
 	}
 
 	// stat the resource
 	if (stat(zip_filename, &stat_path) == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile stat");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile stat\n");
 		exit_status = -1;
 		goto clean_up;
 	}
 
 	// advertise the size of resource
 	if (filerail_send_resource_header(fd, "\0", "\0", stat_path.st_size) == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile filerail_send_resource_header");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile filerail_send_resource_header\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -294,7 +294,7 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
 	// seek the file pointer
 	rewind(fp);
 	if (fseek(fp, offset, SEEK_CUR) == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fseek");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fseek\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -315,7 +315,7 @@ int filerail_sendfile(int fd, const char *zip_filename, filerail_AES_keys *K, ui
   		else nb != fread(...nb) and ferror(fp) (some error occured)
   	*/
   	if (nbytes != min(BUFFER_SIZE, size) && ferror(fp)) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fread");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_sendfile fread\n");
 			exit_status = -1;
 			goto clean_up;
   	}
@@ -379,6 +379,7 @@ int filerail_recvfile(
 	if (offset == 0) {
 		fp = fopen(zip_filename, "wb");
 	} else {
+		PRINT(printf("Adjusting file offset...\n"));
 		fp = fopen(zip_filename, "r+b");
 		for (i = 0; i < offset; i++) {
 			if (fgetc(fp) == EOF) {
@@ -387,10 +388,11 @@ int filerail_recvfile(
 				goto clean_up;
 			}
 		}
+		PRINT(printf("Finished...\n"));
 	}
 
 	if (fp == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -428,7 +430,7 @@ int filerail_recvfile(
   	}
 
 		if (fwrite((void *)out, 1, nbytes, fp) != nbytes && ferror(fp)) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite\n");
 			exit_status = -1;
 			goto clean_up;
 		}
@@ -441,12 +443,12 @@ int filerail_recvfile(
 		// write the checkpoint to tmp file
 		fckpt = fopen(tmp_ckpt_resource_path, "wb");
 		if (fckpt == NULL) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fopen\n");
 			exit_status = -1;
 			goto clean_up;
 		}
 		if (fwrite((void *)&ckpt, 1, sizeof(ckpt), fckpt) != sizeof(ckpt)) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile fwrite\n");
 			exit_status = -1;
 			goto clean_up;
 		}
@@ -463,7 +465,7 @@ int filerail_recvfile(
 			rename() is atomic. So we can be completely sure that checkpoint is not corrupted
 		*/
 		if (rename(tmp_ckpt_resource_path, ckpt_resource_path) == -1) {
-			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile rename");
+			LOG(LOG_USER | LOG_ERR, "socket.h filerail_recvfile rename\n");
 			exit_status = -1;
 			goto clean_up;
 		}
@@ -691,7 +693,7 @@ int filerail_recv_response_header(int fd, filerail_response_header *ptr) {
 	size = ntohl(size);
 	buf = malloc(size);
 	if (buf == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_response_header");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_response_header\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -724,7 +726,7 @@ int filerail_recv_command_header(int fd, filerail_command_header *ptr) {
 	size = ntohl(size);
 	buf = malloc(size);
 	if (buf == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_command_header");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_command_header\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -757,7 +759,7 @@ int filerail_recv_resource_header(int fd, filerail_resource_header *ptr) {
 	size = ntohl(size);
 	buf = malloc(size);
 	if (buf == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_resource_header");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_resource_header\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -790,7 +792,7 @@ int filerail_recv_file_offset(int fd, filerail_file_offset *ptr) {
 	size = ntohl(size);
 	buf = malloc(size);
 	if (buf == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_file_offset");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_file_offset\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -823,7 +825,7 @@ int filerail_recv_resource_hash(int fd, filerail_resource_hash *ptr) {
 	size = ntohl(size);
 	buf = malloc(size);
 	if (buf == NULL) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_resource_hash");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_resource_hash\n");
 		exit_status = -1;
 		goto clean_up;
 	}
@@ -849,7 +851,7 @@ int filerail_recv_data_packet(int fd, filerail_data_packet *ptr) {
 	exit_status = 0;
 	buf = NULL;
 	if (filerail_recv(fd, (void *)&size, sizeof(uint32_t), MSG_WAITALL) == -1) {
-		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_data_packet");
+		LOG(LOG_USER | LOG_ERR, "socket.h filerail_recv_data_packet\n");
 		exit_status = -1;
 		goto clean_up;
 	}
