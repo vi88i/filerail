@@ -75,6 +75,13 @@ $ cat /var/log/syslog | grep filerail
 $ gcc -I./deps/zip/src -o filerail_client filerail_client.c ./deps/msgpack-c/libmsgpackc.a ./deps/openssl/libcrypto.a -Wall
 ```
 
+- Create a symbolic link, so filerail client can be invoked from anywhere.
+
+```bash
+$ cd filerail # move to filerail home folder
+$ sudo ln -s ./filerail_client /usr/local/bin/filerail
+```
+
 ```bash
 # usage: -v -d [-i ipv4 address] [-p port] [-o operation] [-r resource path] 
 #           [-d destination path] [-k key path] [-c checkpoints directory]
@@ -99,20 +106,20 @@ options:
 ### ping
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o ping -k /home/key.txt -c /home/ckpt
+$ filerail -i 127.0.0.1 -p 8000 -o ping -k /home/key.txt -c /home/ckpt
 PONG
 ```
 
 ### Upload file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key.txt -c /home/ckpt
+$ filerail -i 127.0.0.1 -p 8000 -o put -r /home/user/a -d /home/user/fun -k /home/key.txt -c /home/ckpt
 ```
 
 ### Download file/directory
 
 ```bash
-$ ./filerail_client -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key.txt -c /home/ckpt
+$ filerail -i 127.0.0.1 -p 8000 -o get -r /home/user/fun -d /home/user2 -k /home/key.txt -c /home/ckpt
 ```
 
 ---
