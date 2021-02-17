@@ -17,7 +17,7 @@
 	}
 
 /*
-	Pretty self-explanatory if you refer docs.
+	Pretty self-explanatory if you refer msgpack-c docs.
 	General notes:
 	1. To pack multiple objects, we need to create an array because sbuf doesn't act like a stack.
 	Check resource_header serialization.
