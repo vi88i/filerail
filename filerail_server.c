@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <signal.h>
+#include <errno.h>
 
 #include "filerail/global.h"
 #include "filerail/constants.h"
@@ -12,6 +15,15 @@
 #include "filerail/utils.h"
 #include "filerail/crypto.h"
 #include "filerail/operations.h"
+
+// read the exit status to prevent zombies
+static void handler(int signum) {
+	if (signum == SIGCHLD) {
+		while (waitpid(-1, NULL, WNOHANG) > 0) {
+			;
+		}
+	}
+}
 
 int main(int argc, char *argv[]) {
 	// arguemet parsing variables
@@ -31,13 +43,24 @@ int main(int argc, char *argv[]) {
 	socklen_t addrlen;
 	struct sockaddr_in cliaddr;
 
-	// // get/put related variables
+	// get/put related variables
 	filerail_command_header command;
 	filerail_resource_header resource;
 	filerail_response_header response;
 	filerail_AES_keys K;
 	struct stat stat_path;
 	char resource_path[MAX_PATH_LENGTH];
+
+	// signal related
+	struct sigaction act;
+
+	// register for SIGCHLD
+	memset(&act, 0, sizeof(act));
+	act.sa_handler = &handler;
+	if (sigaction(SIGCHLD, &act, NULL) < 0) {
+		LOG(LOG_ERR | LOG_USER, "sigaction");
+		goto parent_clean_up;
+	}
 
 	exit_status = 0;
 	should_resolve = false;
@@ -171,8 +194,12 @@ int main(int argc, char *argv[]) {
 		// accept client
 		clifd = filerail_accept(fd, (struct sockaddr*)&cliaddr, &addrlen);
 		if (clifd == -1) {
-			exit_status = -1;
-			goto parent_clean_up;
+			// if interrupted don't exit
+			if (errno != EINTR) {
+				exit_status = -1;
+				goto parent_clean_up;
+			}
+			continue;
 		}
 		// print about who joined
 		if (filerail_who(clifd, "joined") == -1) {
@@ -385,11 +412,13 @@ int main(int argc, char *argv[]) {
 				LOG(LOG_INFO | LOG_USER, "child process, SUCCESS\n");
 			}
 			return exit_status;
+		} else {
+			// parent doesn't need the client socket
+			filerail_close(clifd);
 		}
 	}
 
 	parent_clean_up:
-	filerail_close(clifd);
 	filerail_close(fd);
 	if (exit_status == -1) {
 		LOG(LOG_INFO | LOG_USER, "parent process, FAILED\n");
@@ -397,6 +426,5 @@ int main(int argc, char *argv[]) {
 		LOG(LOG_INFO | LOG_USER, "parent process, SUCCESS\n");
 	}
 	closelog();
-	while (wait(NULL) > 0);
 	return exit_status;
 }
