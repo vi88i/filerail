@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
 			goto parent_clean_up;
 		}
 
-		// fork and server from child process
+		// fork and serve child process
 		pid = fork();
 		if (pid == -1) {
 			LOG(LOG_ERR | LOG_USER, "filerail_server fork\n");
