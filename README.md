@@ -91,7 +91,7 @@ $ sudo ln -s ./filerail_client /usr/local/bin/filerail
 options:
 1. -u : usage
 2. -v : verbose mode on
-3. -d : DNS resolution of provided DNS name
+3. -n : DNS resolution of provided DNS name
 4. -i : IPv4 address of server
 5. -p : port
 6. -o : operation {put, get, ping}
